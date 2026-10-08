@@ -1,0 +1,12 @@
+# Local documents and generated artifacts
+.DS_Store
+/output/
+/outputs/
+/tmp/
+.env
+.env.*
+!.env.example
+**/config/local.json
+*.jks
+*.keystore
+**/key.properties
