@@ -30,7 +30,7 @@ Tổng cộng 50 chức năng; mỗi mã được giao cho đúng một thành v
 - [ ] Cung cấp cấu hình Supabase dùng cho ứng dụng qua config/local.json.
 - [ ] Chốt danh sách màn hình và luồng điều hướng từng role.
 - [ ] Triển khai các hàm backend, endpoint hồ sơ và quyền truy cập Storage; chốt dữ liệu đầu vào/đầu ra.
-- [ ] Tạo tài khoản demo Admin, Sinh viên và Kỹ thuật viên.
+- [x] Tạo và xác minh tài khoản/hồ sơ demo Admin, Sinh viên và Kỹ thuật viên; xem [hướng dẫn demo](../database/DEMO_ACCOUNTS.md).
 - [ ] An triển khai đăng nhập, kiểm tra account_status/must_change_password và điều hướng theo profile phía server.
 - [ ] Làm luồng mẫu: tạo yêu cầu → phân công → sửa chữa → gửi kết quả → xác nhận.
 
