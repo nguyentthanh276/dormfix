@@ -27,6 +27,8 @@ Android: mở emulator trong Android Studio, chạy `flutter devices`, sau đó 
 
 ### Cấu hình Supabase
 
+Hướng dẫn từng bước cho thành viên: [docs/supabase-setup.md](docs/supabase-setup.md).
+
 Sao chép `app/config/example.json` thành `app/config/local.json`, điền **publishable key** của project. File local được Git bỏ qua. Không đưa secret/service_role key vào Flutter.
 
 Trong thư mục `app`:
