@@ -7,7 +7,7 @@
 - Đã tạo khung Flutter cho Android và Web, theme chung và hỗ trợ tiếng Việt.
 - Đã thêm Supabase SDK và cấu hình khởi tạo; chưa có khóa trong repository.
 - Màn hình khởi động tạm thời chạy được khi chưa cấu hình Supabase. Khởi tạo SDK thành công không chứng minh database đã sẵn sàng.
-- Chưa triển khai đăng nhập, phân quyền điều hướng hay các màn hình nghiệp vụ.
+- Đã triển khai RPC `get_my_profile()` và kiểm thử quyền đọc hồ sơ; hợp đồng tại `docs/auth-contract.md`. Chưa triển khai giao diện đăng nhập, phân quyền điều hướng hay endpoint đổi mật khẩu phía server.
 - `database/001_schema.sql` đã chạy trên Supabase ngày 12/10/2026: 10 bảng bật RLS và 4 loại sự cố. Đã có 3 tài khoản/hồ sơ demo và phòng DEMO-A101 (xem `database/DEMO_ACCOUNTS.md`); chưa có các hàm ghi nghiệp vụ và Storage policies. Kết quả tại `database/DEPLOYMENT.md`. Đọc `database/README.md` trước khi triển khai.
 
 Backlog chính thức: [Backlog DormFix](https://docs.google.com/spreadsheets/d/1wyGEBfdeK9rxBVrfjD1VsaUn0o8sIh2cBu0Tgy27YfY/edit).
