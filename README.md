@@ -8,7 +8,7 @@
 - Đã thêm Supabase SDK và cấu hình khởi tạo; chưa có khóa trong repository.
 - Màn hình khởi động tạm thời chạy được khi chưa cấu hình Supabase. Khởi tạo SDK thành công không chứng minh database đã sẵn sàng.
 - Chưa triển khai đăng nhập, phân quyền điều hướng hay các màn hình nghiệp vụ.
-- `database/001_schema.sql` là thiết kế nền tảng **chưa chạy trên Supabase**, chưa có các hàm ghi nghiệp vụ và Storage policies. Đọc `database/README.md` trước khi triển khai.
+- `database/001_schema.sql` đã chạy trên Supabase ngày 12/10/2026: 10 bảng bật RLS và 4 loại sự cố. Chưa có tài khoản demo, các hàm ghi nghiệp vụ và Storage policies. Kết quả tại `database/DEPLOYMENT.md`. Đọc `database/README.md` trước khi triển khai.
 
 Backlog chính thức: [Backlog DormFix](https://docs.google.com/spreadsheets/d/1wyGEBfdeK9rxBVrfjD1VsaUn0o8sIh2cBu0Tgy27YfY/edit).
 
