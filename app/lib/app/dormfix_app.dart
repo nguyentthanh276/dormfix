@@ -11,22 +11,21 @@ class DormFixApp extends StatelessWidget {
   const DormFixApp({super.key, required this.auth});
   final AuthService auth;
   @override
-  Widget build(BuildContext context) => MaterialApp(
-    title: 'DormFix',
-    debugShowCheckedModeBanner: false,
-    theme: AppTheme.light,
-    locale: const Locale('vi'),
-    supportedLocales: const [Locale('vi'), Locale('en')],
-    localizationsDelegates: GlobalMaterialLocalizations.delegates,
-    home: ListenableBuilder(
-      listenable: auth,
-      builder: (context, _) {
-        if (auth.current == null) return LoginPage(auth: auth);
-        if (auth.current!.mustChangePassword) {
-          return PasswordPage(auth: auth, mandatory: true);
-        }
-        return ProfilePage(auth: auth);
-      },
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: auth,
+    builder: (context, _) => MaterialApp(
+      key: ValueKey(auth.current?.id),
+      title: 'DormFix',
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.light,
+      locale: const Locale('vi'),
+      supportedLocales: const [Locale('vi'), Locale('en')],
+      localizationsDelegates: GlobalMaterialLocalizations.delegates,
+      home: auth.current == null
+          ? LoginPage(auth: auth)
+          : auth.current!.mustChangePassword
+          ? PasswordPage(auth: auth, mandatory: true)
+          : ProfilePage(auth: auth),
     ),
   );
 }
