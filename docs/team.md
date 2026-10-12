@@ -19,19 +19,19 @@ Tổng cộng 50 chức năng; mỗi mã được giao cho đúng một thành v
 - Tuyền và Quỳnh cùng dùng student_confirmation: Tuyền làm danh sách chờ xác nhận, Quỳnh làm các thao tác xác nhận/sửa lại/mở lại. Không giao trùng DF-013.
 - Tuyền và Thành cùng dùng notifications, tách phần trình bày theo role khi cần và dùng chung hợp đồng dữ liệu.
 - An phụ trách đăng nhập và hồ sơ, phối hợp các thành viên khi nối điều hướng theo role.
-- Thay đổi core, shared, app, schema và hợp đồng Service local phải trao đổi trong nhóm trước để tránh trùng việc. Quyền truy cập và chuyển trạng thái cần được kiểm tra trong Service Dart.
+- Thay đổi core, shared, app, schema và hợp đồng backend phải trao đổi trong nhóm trước để tránh trùng việc. Quyền truy cập và chuyển trạng thái cần được kiểm tra phía server.
 
 ## Checklist bắt đầu code
 
 - [x] Tạo repository GitHub và cấu trúc Flutter Android/Web.
 - [x] Chốt backlog 50 chức năng và phân công 6 cụm.
-- [x] Chuyển nền tảng sang SQLite local, 10 bảng và dữ liệu demo; xem [database local](../database/README.md).
+- [x] Triển khai schema Supabase: 10 bảng bật RLS và 4 loại sự cố; xem [kết quả triển khai](../database/DEPLOYMENT.md).
 - [ ] Mời các thành viên vào GitHub, clone repository và chạy màn hình khởi động.
-- [ ] Tất cả thành viên chạy bản local trên Android Emulator theo [setup local](local-setup.md).
+- [ ] Cung cấp cấu hình Supabase dùng cho ứng dụng qua config/local.json.
 - [ ] Chốt danh sách màn hình và luồng điều hướng từng role.
-- [ ] Triển khai Service/Repository Dart cho nghiệp vụ và nối ảnh local; chốt API dùng chung.
-- [x] Tạo và xác minh tài khoản/hồ sơ demo Admin, Sinh viên và Kỹ thuật viên; xem [hướng dẫn demo](auth-contract.md).
-- [ ] An tiếp tục hoàn thiện UI đăng nhập/hồ sơ và dashboard role từ nền tảng local; xem [hợp đồng](auth-contract.md).
+- [ ] Triển khai các hàm backend, endpoint hồ sơ và quyền truy cập Storage; chốt dữ liệu đầu vào/đầu ra.
+- [x] Tạo và xác minh tài khoản/hồ sơ demo Admin, Sinh viên và Kỹ thuật viên; xem [hướng dẫn demo](../database/DEMO_ACCOUNTS.md).
+- [ ] An triển khai đăng nhập, kiểm tra account_status/must_change_password và điều hướng theo profile phía server.
 - [ ] Làm luồng mẫu: tạo yêu cầu → phân công → sửa chữa → gửi kết quả → xác nhận.
 
-Nhóm dùng Service Dart và SQLite local. Nền tảng đăng nhập/hồ sơ đã có; các thao tác sửa chữa và quản trị vẫn cần triển khai theo backlog.
+Nhóm có thể dựng giao diện trong khi hoàn thiện backend. Khởi tạo SDK Supabase thành công chưa có nghĩa các thao tác nghiệp vụ đã sẵn sàng.

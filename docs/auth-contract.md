@@ -1,30 +1,33 @@
-# Hợp đồng Service local cho An và nhóm
+# Hợp đồng backend đăng nhập — cụm 1 (An)
 
-Không gọi Supabase hoặc RPC. Root app tạo LocalDatabase → AuthRepository → AuthService; các màn hình dùng cùng instance AuthService. LoginPage, PasswordPage và ProfilePage hiện đã có bản nền tảng để An phát triển tiếp.
+Đã triển khai trên Supabase ngày 12/10/2026, kiểm thử role trong SQL Editor đạt. Chưa kiểm thử từ phiên đăng nhập Flutter.
 
-## API
+## get_my_profile()
 
-- auth.login(email, password): kiểm tra hash và status, đăng nhập đúng tài khoản; email trim/lowercase nhưng mật khẩu giữ nguyên.
-- auth.logout(): xóa phiên trong RAM. Không xóa database.
-- auth.getMyProfile(): đọc lại hồ sơ chính chủ từ SQLite; chặn tài khoản locked/revoked và đăng xuất khi phiên không còn hợp lệ. Không lộ hash/salt trong UserProfile.
-- auth.requireBusinessAccess(roles: {AppRole.student}): mỗi service nghiệp vụ phải gọi trước thao tác; chặn chưa đăng nhập, chưa đổi mật khẩu, sai role và tài khoản bị khóa/thu hồi.
-- auth.changePassword(currentPassword, newPassword): validate, kiểm tra mật khẩu cũ, tạo hash/salt mới và bỏ must_change_password cùng transaction, ghi lịch sử.
-- auth.updatePhone(phone): chính chủ Sinh viên/Kỹ thuật viên, đã đổi mật khẩu; chỉ cập nhật phone và lịch sử. Email/mã/role không sửa.
-
-Ví dụ service tương lai:
+Không nhận user_id hay role từ Flutter. Hàm lấy người gọi từ auth.uid(); chỉ authenticated được gọi. Trả JSON object.
 
 ```dart
-final student = await auth.requireBusinessAccess(roles: {AppRole.student});
-// Kiểm tra phòng và loại sự cố hoạt động; dùng student.id từ phiên.
-// Trong database.transaction: ghi yêu cầu và lịch sử cùng nhau.
+final supabase = Supabase.instance.client;
+await supabase.auth.signInWithPassword(email: email, password: password);
+final profile = Map<String, dynamic>.from(
+  await supabase.rpc('get_my_profile'),
+);
 ```
 
-Màn hình gọi service; service gọi repository. Không dùng auth.current làm kiểm tra quyền duy nhất vì đó là bản hiển thị; requireBusinessAccess đọc lại trạng thái trong SQLite. Trong transaction phải kiểm tra các điều kiện có thể thay đổi và khóa/đọc dữ liệu tương ứng trước khi ghi.
+Thứ tự xử lí:
 
-## Điều hướng hiện có
+1. status là locked/revoked: báo tài khoản bị khóa/thu hồi và đăng xuất. Phản hồi chỉ có id, status, can_access=false và must_change_password; không đọc các trường role/email/name trong trường hợp này.
+2. status=active, must_change_password=true: mở màn hình đổi mật khẩu; chưa vào nghiệp vụ.
+3. status=active, can_access=true: điều hướng theo role admin/student/technician.
+4. PROFILE_NOT_FOUND (P0002): báo chưa có hồ sơ và đăng xuất; không mặc định role.
+5. AUTH_REQUIRED (28000) hoặc phiên hết hạn: yêu cầu đăng nhập lại. Mất mạng/lỗi dịch vụ: cho thử lại, không tự cho vào nghiệp vụ.
 
-Chưa đăng nhập → LoginPage. must_change_password=true → PasswordPage bắt buộc, không quay về nghiệp vụ. Sau đổi mật khẩu → ProfilePage hiển thị tên role. Khi role dashboards hoàn thành, nhóm thay nhánh ProfilePage bằng các dashboard tương ứng.
+Khi active, phản hồi có id, identity_code, full_name, email, phone (có thể null), role, status, room (object hoặc null), must_change_password, can_access. room gồm id/code/building/is_active. Ví dụ Sinh viên trước đổi mật khẩu: email=student@example.com, role=student, room.code=DEMO-A101, must_change_password=true, can_access=false.
 
-## Demo
+## Giới hạn hiện tại
 
-admin@example.com / ADMIN001; student@example.com / SV001 / DEMO-A101; technican@example.com / KTV001. Mật khẩu ban đầu do leader cung cấp. Các tài khoản được tạo local, không dùng thông tin từ Supabase. Chỉ demo một thiết bị; kiểm tra quyền trong Dart phù hợp scope này, không phải hệ thống bảo mật server cho triển khai nhiều người dùng.
+RPC này chỉ đọc hồ sơ. Không cấp quyền cập nhật email/role/status hoặc tự đặt must_change_password=false. Các quyền đọc nghiệp vụ hiện có vẫn kiểm tra tài khoản active và đã đổi mật khẩu.
+
+**Endpoint đổi mật khẩu bắt buộc chưa triển khai.** Không làm nút gọi updateUser rồi tự sửa flag, cũng không tạo RPC cho client khai rằng đã đổi mật khẩu. Bước tiếp theo cần endpoint server xác thực người gọi, kiểm tra mật khẩu, cập nhật Supabase Auth thành công rồi mới bỏ flag và ghi lịch sử. Không dùng auth.users.updated_at làm bằng chứng đổi mật khẩu vì trường này có thể đổi bởi thao tác khác.
+
+Flutter vẫn là khung ứng dụng; đoạn trên là hợp đồng để An nối giao diện, chưa phải màn hình đăng nhập đã chạy.

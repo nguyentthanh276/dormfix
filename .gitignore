@@ -10,8 +10,3 @@
 *.jks
 *.keystore
 **/key.properties
-
-# Local app databases
-*.db
-*.db-shm
-*.db-wal

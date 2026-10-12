@@ -1,62 +1,80 @@
-# DormFix local — PRM393
+# DormFix — PRM393
 
-Project Flutter chạy local trên **một Android Emulator hoặc điện thoại Android**. Cả ba role lần lượt dùng cùng database SQLite trên thiết bị đó. Không cần Supabase, server hay Internet cho đăng nhập và nghiệp vụ local. Lần đầu tải thư viện/build vẫn cần Internet.
+Ứng dụng quản lí sửa chữa ký túc xá với ba vai trò: Admin, Sinh viên, Kỹ thuật viên.
 
-## Chạy
+## Hiện trạng
 
-Dùng Flutter 3.47.6 (Dart 3.13.5), Android SDK và JDK 21. Trên máy leader có emulator PRM393_API36.
+- Đã tạo khung Flutter cho Android và Web, theme chung và hỗ trợ tiếng Việt.
+- Đã thêm Supabase SDK và cấu hình khởi tạo; chưa có khóa trong repository.
+- Màn hình khởi động tạm thời chạy được khi chưa cấu hình Supabase. Khởi tạo SDK thành công không chứng minh database đã sẵn sàng.
+- Đã triển khai RPC `get_my_profile()` và kiểm thử quyền đọc hồ sơ; hợp đồng tại `docs/auth-contract.md`. Chưa triển khai giao diện đăng nhập, phân quyền điều hướng hay endpoint đổi mật khẩu phía server.
+- `database/001_schema.sql` đã chạy trên Supabase ngày 12/10/2026: 10 bảng bật RLS và 4 loại sự cố. Đã có 3 tài khoản/hồ sơ demo và phòng DEMO-A101 (xem `database/DEMO_ACCOUNTS.md`); chưa có các hàm ghi nghiệp vụ và Storage policies. Kết quả tại `database/DEPLOYMENT.md`. Đọc `database/README.md` trước khi triển khai.
+
+Backlog chính thức: [Backlog DormFix](https://docs.google.com/spreadsheets/d/1wyGEBfdeK9rxBVrfjD1VsaUn0o8sIh2cBu0Tgy27YfY/edit).
+
+## Chạy project
+
+Dùng Flutter **3.47.6**, Dart **3.13.5**, Android SDK và JDK 21 như môi trường khởi tạo. Chưa cấu hình iOS.
 
 ```sh
 git clone https://github.com/nguyentthanh276/dormfix.git
-cd dormfix
-git switch codex/local-sqlite
-cd app
+cd dormfix/app
 flutter pub get
-flutter emulators
-flutter emulators --launch PRM393_API36
-flutter devices
-flutter run -d <ANDROID_DEVICE_ID>
+flutter run -d chrome
 ```
 
-Các thành viên tạo emulator riêng và thay tên/ID theo máy. Không truyền dart-define, không cần local.json hoặc API key. Bản local hiện không hỗ trợ Chrome/iOS/macOS; Chrome hiển thị hướng dẫn dùng Android.
+Android: mở emulator trong Android Studio, chạy `flutter devices`, sau đó `flutter run -d <device-id>`.
 
-## Dữ liệu demo
+### Cấu hình Supabase
 
-Lần đầu mở app tự tạo 10 bảng, phòng DEMO-A101, bốn loại sự cố và ba tài khoản: admin@example.com, student@example.com, technican@example.com. Mật khẩu demo ban đầu do leader cung cấp riêng. Sinh viên/Kỹ thuật viên phải đổi mật khẩu lần đầu, Admin vào hồ sơ trực tiếp. Chỉ seed trong onCreate; mật khẩu mới, số điện thoại và lịch sử được giữ khi đóng/mở app. Mỗi thiết bị có database riêng, không đồng bộ với cloud hay máy khác.
+Hướng dẫn từng bước cho thành viên: [docs/supabase-setup.md](docs/supabase-setup.md).
 
-## Đã triển khai
+Sao chép `app/config/example.json` thành `app/config/local.json`, điền **publishable key** của project. File local được Git bỏ qua. Không đưa secret/service_role key vào Flutter.
 
-- Schema SQLite, seed, khóa ngoại, unique/check, mã DF tự tăng và trigger giữ email/mã/role không đổi.
-- AuthService Dart: đăng nhập/đăng xuất, đọc hồ sơ, kiểm tra status và role, bắt buộc đổi mật khẩu, đổi mật khẩu chủ động và cập nhật số điện thoại.
-- Mật khẩu hash PBKDF2 SHA256 120000 vòng với salt riêng; không lưu mật khẩu plaintext trong database.
-- Giao diện đăng nhập, đổi mật khẩu, hồ sơ hiển thị đúng role. Đây chưa phải dashboard nghiệp vụ của từng role.
-- LocalImageStore sao chép JPEG/PNG/WebP vào thư mục app, kiểm tra kích thước và số ảnh đầu vào. Chưa có form chọn ảnh hay lưu metadata theo yêu cầu; Service nghiệp vụ phải kiểm tra quyền/số ảnh đã có trước khi dùng.
+Trong thư mục `app`:
 
-## Phần nhóm viết tiếp
+```sh
+flutter run -d chrome --dart-define-from-file=config/local.json
+```
 
-Các chức năng yêu cầu sửa chữa, phân công, gửi kết quả, xác nhận và quản trị chưa triển khai. Không có backend server: viết Service Dart trong features tương ứng, dùng AuthService.requireBusinessAccess và transaction SQLite. Xem [hợp đồng local](docs/auth-contract.md), [setup local](docs/local-setup.md), [phân công](docs/team.md).
+Cách khởi tạo theo [Supabase Flutter docs](https://supabase.com/docs/reference/dart/initializing). Cấu hình này chỉ khởi tạo SDK; database và quyền truy cập cần triển khai riêng.
+
+## Cấu trúc
 
 ```text
-app/lib/app/             Root app và chọn màn hình theo phiên
-app/lib/core/database/   Mở SQLite và tạo dữ liệu lần đầu
-app/lib/core/security/   Hash và validate mật khẩu
-app/lib/core/storage/    File ảnh local
-app/lib/features/       Service, repository, model, màn hình theo chức năng
-app/assets/database/    Schema SQLite đang chạy
-database/               Hướng dẫn local và tài liệu cloud lưu trữ
-docs/                   Hướng dẫn nhóm
+app/
+  lib/
+    app/                 # Root app và điều hướng (sẽ bổ sung)
+    core/                # Config, theme, enum dùng chung
+    shared/widgets/      # Widget tái sử dụng
+    features/            # Từng nhóm chức năng
+      auth/
+      profile/
+      student_requests/
+      student_confirmation/
+      technician_jobs/
+      admin_accounts/
+      admin_rooms/
+      admin_requests/
+      incident_categories/
+      notifications/
+  config/                # File cấu hình mẫu; local.json không commit
+  test/
+database/                # SQL và ghi chú backend
+docs/                    # Phân công và quy trình Git
+.github/workflows/       # Kiểm tra tự động
 ```
 
-## Kiểm tra
+Mỗi feature có `data/` (repository gọi Supabase), `models/` (dữ liệu), `presentation/` (màn hình/widget). Chỉ tạo file khi cần; thư mục hiện tại là khung, không phải chức năng đã hoàn thành. Quyền role và quy tắc chuyển trạng thái phải kiểm tra phía server; không ghi trực tiếp trạng thái yêu cầu từ UI.
+
+## Kiểm tra trước khi gửi PR
 
 ```sh
 cd app
 dart format lib test
 flutter analyze
 flutter test
-flutter build apk --debug
+flutter build web
 ```
 
-Cloud Supabase cũ không bị sửa hoặc xóa. Mã/tài liệu cũ được giữ trong database/legacy_supabase và docs/legacy_supabase để tham khảo; không dùng cho bản local. File Word hướng dẫn Supabase trước đây cũng thuộc phương án cũ.
-
-Backlog giữ nguyên: [Backlog DormFix](https://docs.google.com/spreadsheets/d/1wyGEBfdeK9rxBVrfjD1VsaUn0o8sIh2cBu0Tgy27YfY/edit).
+Theo dõi phân công tại [docs/team.md](docs/team.md), quy trình tại [CONTRIBUTING.md](CONTRIBUTING.md).
