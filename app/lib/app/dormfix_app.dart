@@ -2,13 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import '../core/theme/app_theme.dart';
-import 'startup_page.dart';
+import '../features/auth/data/auth_service.dart';
+import '../features/auth/presentation/login_page.dart';
+import '../features/auth/presentation/password_page.dart';
+import '../features/profile/presentation/profile_page.dart';
 
 class DormFixApp extends StatelessWidget {
-  const DormFixApp({super.key, this.backendReady = false});
-
-  final bool backendReady;
-
+  const DormFixApp({super.key, required this.auth});
+  final AuthService auth;
   @override
   Widget build(BuildContext context) => MaterialApp(
     title: 'DormFix',
@@ -17,6 +18,15 @@ class DormFixApp extends StatelessWidget {
     locale: const Locale('vi'),
     supportedLocales: const [Locale('vi'), Locale('en')],
     localizationsDelegates: GlobalMaterialLocalizations.delegates,
-    home: StartupPage(backendReady: backendReady),
+    home: ListenableBuilder(
+      listenable: auth,
+      builder: (context, _) {
+        if (auth.current == null) return LoginPage(auth: auth);
+        if (auth.current!.mustChangePassword) {
+          return PasswordPage(auth: auth, mandatory: true);
+        }
+        return ProfilePage(auth: auth);
+      },
+    ),
   );
 }
