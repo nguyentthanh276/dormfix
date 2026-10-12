@@ -7,17 +7,27 @@ import 'core/config/app_config.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final config = AppConfig.fromEnvironment();
-  var backendReady = false;
-  if (config.isConfigured) {
+  String? backendError;
+
+  if (!config.isConfigured) {
+    backendError =
+        'Thiếu hoặc không hợp lệ cấu hình Supabase. '
+        'Hãy kiểm tra SUPABASE_URL và SUPABASE_PUBLISHABLE_KEY trong '
+        'config/local.json rồi chạy lại ứng dụng.';
+  } else {
     try {
       await Supabase.initialize(
         url: config.supabaseUrl,
         publishableKey: config.supabasePublishableKey,
       );
-      backendReady = true;
     } catch (_) {
-      // Keep the shell usable when initialization fails. Never log credentials.
+      backendError =
+          'Không thể khởi tạo dịch vụ Supabase. Vui lòng kiểm tra cấu hình '
+          'và kết nối mạng rồi thử lại.';
     }
   }
-  runApp(DormFixApp(backendReady: backendReady));
+
+  runApp(
+    DormFixApp(backendReady: backendError == null, backendError: backendError),
+  );
 }

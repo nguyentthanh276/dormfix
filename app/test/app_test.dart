@@ -13,7 +13,7 @@ void main() {
     await tester.pumpWidget(const DormFixApp());
     await tester.pumpAndSettle();
     expect(find.text('DormFix'), findsOneWidget);
-    expect(find.textContaining('Chưa sẵn sàng'), findsOneWidget);
+    expect(find.text('Chưa sẵn sàng kết nối'), findsOneWidget);
     expect(tester.takeException(), isNull);
     expect(
       tester.widget<MaterialApp>(find.byType(MaterialApp)).locale,
