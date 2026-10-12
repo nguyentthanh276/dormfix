@@ -30,4 +30,7 @@ RPC này chỉ đọc hồ sơ. Không cấp quyền cập nhật email/role/sta
 
 **Endpoint đổi mật khẩu bắt buộc chưa triển khai.** Không làm nút gọi updateUser rồi tự sửa flag, cũng không tạo RPC cho client khai rằng đã đổi mật khẩu. Bước tiếp theo cần endpoint server xác thực người gọi, kiểm tra mật khẩu, cập nhật Supabase Auth thành công rồi mới bỏ flag và ghi lịch sử. Không dùng auth.users.updated_at làm bằng chứng đổi mật khẩu vì trường này có thể đổi bởi thao tác khác.
 
-Flutter vẫn là khung ứng dụng; đoạn trên là hợp đồng để An nối giao diện, chưa phải màn hình đăng nhập đã chạy.
+Flutter triển khai đăng nhập bằng email/mật khẩu, khôi phục session và gọi lại
+`get_my_profile()` trước khi mở placeholder theo role. Chưa kiểm thử luồng này
+với tài khoản Supabase thật. Endpoint đổi mật khẩu bắt buộc vẫn chưa có; ứng dụng
+chặn truy cập nghiệp vụ cho đến khi backend cung cấp endpoint an toàn.

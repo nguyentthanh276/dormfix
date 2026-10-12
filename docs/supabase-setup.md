@@ -82,11 +82,13 @@ Sau khi thay cấu hình, dừng lần chạy hiện tại và chạy lại lệ
 
 ## 5. Kiểm tra kết quả
 
-Ứng dụng hiện là khung phát triển, có màn hình khởi động DormFix. Chưa có form đăng nhập hoặc các màn hình nghiệp vụ.
+Khi cấu hình hợp lệ, ứng dụng sẽ kiểm tra session Supabase:
 
-Thông báo “Đã khởi tạo Supabase” cho biết SDK khởi tạo được. Đây chưa phải bằng chứng khóa hợp lệ, truy vấn database thành công hoặc đăng nhập đã hoạt động. Kiểm tra đầy đủ cần đăng nhập và gọi RPC get_my_profile() theo hợp đồng backend.
+- Chưa đăng nhập: hiện form đăng nhập DormFix.
+- Có session: gọi RPC `get_my_profile()` để kiểm tra quyền trước khi hiển thị placeholder theo role.
+- Tài khoản cần đổi mật khẩu: chặn khu vực nghiệp vụ và yêu cầu liên hệ quản trị viên. Endpoint đổi mật khẩu bắt buộc chưa có.
 
-Nếu thấy “Chưa sẵn sàng kết nối dịch vụ”, kiểm tra URL, khóa, tên file và việc đã truyền --dart-define-from-file. Không sửa RLS để thử khắc phục lỗi cấu hình.
+Đăng nhập dùng tài khoản và mật khẩu do leader cung cấp. Việc khởi tạo SDK không đảm bảo khóa hợp lệ hoặc RPC hoạt động; nếu có lỗi, kiểm tra nội dung trên màn hình và cấu hình. Không sửa RLS để thử khắc phục lỗi cấu hình.
 
 ## 6. Dữ liệu demo dùng chung
 
@@ -114,7 +116,7 @@ Database đã có ba hồ sơ và bốn loại sự cố: Điện, Nước, Nộ
 | Invalid API key / 401 | Xin lại Publishable key đúng project; không thay bằng secret key |
 | Permission denied / dữ liệu rỗng | Kiểm tra đăng nhập, role, status và must_change_password; báo leader nếu quyền chưa triển khai |
 | PROFILE_NOT_FOUND | Tài khoản Auth chưa có hồ sơ liên kết; nhờ leader kiểm tra |
-| Không thấy chức năng đăng nhập | Hiện mới có khung ứng dụng; giao diện đăng nhập đang chờ triển khai |
+| Chưa vào được form đăng nhập | Kiểm tra `config/local.json`, chạy đúng lệnh ở mục 4; nếu có session cũ, ứng dụng sẽ xác minh session trước |
 
 ## Checklist báo leader
 

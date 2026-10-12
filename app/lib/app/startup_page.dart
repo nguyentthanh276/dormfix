@@ -1,10 +1,163 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
-/// Temporary startup screen; replace with the authenticated router later.
-class StartupPage extends StatelessWidget {
-  const StartupPage({super.key, required this.backendReady});
+import '../core/models/app_role.dart';
+import '../features/admin_requests/presentation/admin_home_page.dart';
+import '../features/auth/presentation/auth_controller.dart';
+import '../features/auth/presentation/login_page.dart';
+import '../features/student_requests/presentation/student_home_page.dart';
+import '../features/technician_jobs/presentation/technician_home_page.dart';
 
-  final bool backendReady;
+class StartupPage extends StatefulWidget {
+  const StartupPage({super.key, required this.controller});
+
+  final AuthController controller;
+
+  @override
+  State<StartupPage> createState() => _StartupPageState();
+}
+
+class _StartupPageState extends State<StartupPage> {
+  @override
+  void initState() {
+    super.initState();
+    if (widget.controller.state == AuthViewState.checking) {
+      unawaited(widget.controller.restoreSession());
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: widget.controller,
+    builder: (context, _) => switch (widget.controller.state) {
+      AuthViewState.checking => const _StartupLoadingPage(),
+      AuthViewState.signedOut => LoginPage(controller: widget.controller),
+      AuthViewState.authenticated => switch (widget.controller.profile?.role) {
+        AppRole.admin => AdminHomePage(controller: widget.controller),
+        AppRole.student => StudentHomePage(controller: widget.controller),
+        AppRole.technician => TechnicianHomePage(controller: widget.controller),
+        null => _InvalidProfilePage(controller: widget.controller),
+      },
+      AuthViewState.changePasswordRequired => _PasswordChangeRequiredPage(
+        controller: widget.controller,
+      ),
+      AuthViewState.retryRequired => _StartupErrorPage(
+        controller: widget.controller,
+      ),
+      AuthViewState.unavailable => _ConfigurationErrorPage(
+        message:
+            widget.controller.error ?? 'Dịch vụ xác thực chưa được cấu hình.',
+      ),
+    },
+  );
+}
+
+class _InvalidProfilePage extends StatelessWidget {
+  const _InvalidProfilePage({required this.controller});
+
+  final AuthController controller;
+
+  @override
+  Widget build(BuildContext context) => _MessagePage(
+    title: 'Không thể xác minh quyền',
+    message: 'Hồ sơ không có vai trò hợp lệ. Vui lòng đăng xuất và liên hệ quản trị viên.',
+    icon: Icons.lock_outline,
+    action: TextButton.icon(
+      onPressed: controller.isLoading ? null : controller.signOut,
+      icon: const Icon(Icons.logout),
+      label: const Text('Đăng xuất'),
+    ),
+  );
+}
+
+class _StartupLoadingPage extends StatelessWidget {
+  const _StartupLoadingPage();
+
+  @override
+  Widget build(BuildContext context) => const Scaffold(
+    body: Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CircularProgressIndicator(),
+          SizedBox(height: 16),
+          Text('Đang kiểm tra phiên đăng nhập...'),
+        ],
+      ),
+    ),
+  );
+}
+
+class _ConfigurationErrorPage extends StatelessWidget {
+  const _ConfigurationErrorPage({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) => _MessagePage(
+    title: 'Chưa sẵn sàng kết nối',
+    message: message,
+    icon: Icons.cloud_off_outlined,
+  );
+}
+
+class _StartupErrorPage extends StatelessWidget {
+  const _StartupErrorPage({required this.controller});
+
+  final AuthController controller;
+
+  @override
+  Widget build(BuildContext context) => _MessagePage(
+    title: 'Không thể kiểm tra phiên',
+    message:
+        controller.error ??
+        'Đã xảy ra lỗi khi kiểm tra phiên đăng nhập. Vui lòng thử lại.',
+    icon: Icons.cloud_off_outlined,
+    action: FilledButton.icon(
+      onPressed: controller.isLoading ? null : controller.restoreSession,
+      icon: const Icon(Icons.refresh),
+      label: const Text('Thử lại'),
+    ),
+  );
+}
+
+class _PasswordChangeRequiredPage extends StatelessWidget {
+  const _PasswordChangeRequiredPage({required this.controller});
+
+  final AuthController controller;
+
+  @override
+  Widget build(BuildContext context) => _MessagePage(
+    title: 'Cần đổi mật khẩu',
+    message:
+        'Tài khoản cần đổi mật khẩu trước khi sử dụng DormFix. '
+        'Chức năng đổi mật khẩu an toàn hiện chưa được cung cấp. '
+        'Vui lòng liên hệ quản trị viên; không thể bỏ qua bước này.',
+    error: controller.error,
+    icon: Icons.password_outlined,
+    action: TextButton.icon(
+      onPressed: controller.isLoading ? null : controller.signOut,
+      icon: const Icon(Icons.logout),
+      label: const Text('Đăng xuất'),
+    ),
+  );
+}
+
+class _MessagePage extends StatelessWidget {
+  const _MessagePage({
+    required this.title,
+    required this.message,
+    required this.icon,
+    this.error,
+    this.action,
+  });
+
+  final String title;
+  final String message;
+  final IconData icon;
+  final String? error;
+  final Widget? action;
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -18,33 +171,27 @@ class StartupPage extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
-                Icons.home_repair_service_outlined,
-                size: 72,
+                icon,
+                size: 64,
                 color: Theme.of(context).colorScheme.primary,
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
               Text(
-                'Sửa chữa ký túc xá',
+                title,
                 style: Theme.of(context).textTheme.headlineSmall,
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 12),
-              const Text(
-                'Ứng dụng đang được phát triển.',
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 24),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Text(
-                    backendReady
-                        ? 'Đã khởi tạo Supabase. Chức năng đăng nhập sẽ được bổ sung.'
-                        : 'Chưa sẵn sàng kết nối dịch vụ. Vui lòng kiểm tra cấu hình.',
-                    textAlign: TextAlign.center,
-                  ),
+              Text(message, textAlign: TextAlign.center),
+              if (error case final error?) ...[
+                const SizedBox(height: 12),
+                Text(
+                  error,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                  textAlign: TextAlign.center,
                 ),
-              ),
+              ],
+              if (action != null) ...[const SizedBox(height: 24), action!],
             ],
           ),
         ),
