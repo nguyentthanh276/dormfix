@@ -259,9 +259,16 @@ void main() {
         await tester.tap(find.text('Đăng nhập'));
         await tester.pumpAndSettle();
 
-        expect(find.text('Vai trò: ${role.label}'), findsOneWidget);
+        // Sinh viên đã có màn thật (Yêu cầu của tôi); 2 vai trò còn lại vẫn là màn tạm.
+        if (role != AppRole.student) {
+          expect(find.text('Vai trò: ${role.label}'), findsOneWidget);
+        }
         expect(find.text(_homeTitle(role)), findsOneWidget);
-        await tester.tap(find.text('Đăng xuất'));
+        await tester.tap(
+          role == AppRole.student
+              ? find.byTooltip('Đăng xuất')
+              : find.text('Đăng xuất'),
+        );
         await tester.pumpAndSettle();
 
         expect(find.text('Đăng nhập DormFix'), findsOneWidget);
@@ -276,7 +283,7 @@ void main() {
 
 String _homeTitle(AppRole role) => switch (role) {
   AppRole.admin => 'DormFix - Quản lý KTX',
-  AppRole.student => 'DormFix - Sinh viên',
+  AppRole.student => 'Yêu cầu của tôi',
   AppRole.technician => 'DormFix - Kỹ thuật viên',
 };
 
