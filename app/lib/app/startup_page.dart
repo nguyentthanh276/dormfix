@@ -7,12 +7,18 @@ import '../features/admin_requests/presentation/admin_home_page.dart';
 import '../features/auth/presentation/auth_controller.dart';
 import '../features/auth/presentation/login_page.dart';
 import '../features/student_requests/presentation/student_home_page.dart';
+import '../features/technician_jobs/data/technician_jobs_repository.dart';
 import '../features/technician_jobs/presentation/technician_home_page.dart';
 
 class StartupPage extends StatefulWidget {
-  const StartupPage({super.key, required this.controller});
+  const StartupPage({
+    super.key,
+    required this.controller,
+    this.technicianJobsRepository,
+  });
 
   final AuthController controller;
+  final TechnicianJobsRepository? technicianJobsRepository;
 
   @override
   State<StartupPage> createState() => _StartupPageState();
@@ -36,7 +42,11 @@ class _StartupPageState extends State<StartupPage> {
       AuthViewState.authenticated => switch (widget.controller.profile?.role) {
         AppRole.admin => AdminHomePage(controller: widget.controller),
         AppRole.student => StudentHomePage(controller: widget.controller),
-        AppRole.technician => TechnicianHomePage(controller: widget.controller),
+        AppRole.technician => TechnicianHomePage(
+          key: ValueKey('technician-${widget.controller.profile?.id}'),
+          controller: widget.controller,
+          repository: widget.technicianJobsRepository,
+        ),
         null => _InvalidProfilePage(controller: widget.controller),
       },
       AuthViewState.changePasswordRequired => _PasswordChangeRequiredPage(
