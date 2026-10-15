@@ -23,8 +23,9 @@ class SupabaseAuthRepository implements AuthRepository {
 
   @override
   Stream<bool> get sessionChanges => _client.auth.onAuthStateChange
-      .map((state) => state.session != null)
-      .distinct();
+      .map((state) => state.session?.user.id)
+      .distinct()
+      .map((userId) => userId != null);
 
   @override
   Future<UserProfile> signIn({
@@ -45,14 +46,23 @@ class SupabaseAuthRepository implements AuthRepository {
   @override
   Future<UserProfile> loadProfile() async {
     try {
+      final expectedUserId = _client.auth.currentSession?.user.id;
+      if (expectedUserId == null || expectedUserId.isEmpty) {
+        throw _sessionChangedFailure;
+      }
       final result = await _client.rpc('get_my_profile');
+      if (_client.auth.currentSession?.user.id != expectedUserId) {
+        throw _sessionChangedFailure;
+      }
       if (result is! Map) {
         throw const AuthFailure(
           'Dữ liệu hồ sơ không hợp lệ. Vui lòng liên hệ quản trị viên.',
           signOutRequired: true,
         );
       }
-      return UserProfile.fromJson(Map<String, dynamic>.from(result));
+      final profile = UserProfile.fromJson(Map<String, dynamic>.from(result));
+      if (profile.id != expectedUserId) throw _sessionChangedFailure;
+      return profile;
     } on PostgrestException catch (error) {
       if (error.code == 'P0002') {
         throw const AuthFailure(
@@ -79,6 +89,11 @@ class SupabaseAuthRepository implements AuthRepository {
 
   @override
   Future<void> signOut() => _client.auth.signOut();
+
+  static const _sessionChangedFailure = AuthFailure(
+    'Phiên đăng nhập đã kết thúc hoặc thay đổi. Vui lòng đăng nhập lại.',
+    signOutRequired: true,
+  );
 }
 
 class AuthFailure implements Exception {

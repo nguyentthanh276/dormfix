@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/theme/app_theme.dart';
 import '../features/auth/data/auth_repository.dart';
 import '../features/auth/presentation/auth_controller.dart';
+import '../features/technician_jobs/data/technician_jobs_repository.dart';
 import 'startup_page.dart';
 
 class DormFixApp extends StatefulWidget {
@@ -13,11 +14,13 @@ class DormFixApp extends StatefulWidget {
     this.backendReady = false,
     this.backendError,
     this.authRepository,
+    this.technicianJobsRepository,
   });
 
   final bool backendReady;
   final String? backendError;
   final AuthRepository? authRepository;
+  final TechnicianJobsRepository? technicianJobsRepository;
 
   @override
   State<DormFixApp> createState() => _DormFixAppState();
@@ -25,6 +28,7 @@ class DormFixApp extends StatefulWidget {
 
 class _DormFixAppState extends State<DormFixApp> {
   late final AuthController _authController;
+  late final TechnicianJobsRepository? _technicianJobsRepository;
 
   @override
   void initState() {
@@ -42,6 +46,11 @@ class _DormFixAppState extends State<DormFixApp> {
               ? 'Chưa sẵn sàng kết nối dịch vụ. Hãy kiểm tra cấu hình Supabase.'
               : null),
     );
+    _technicianJobsRepository =
+        widget.technicianJobsRepository ??
+        (widget.backendReady
+            ? SupabaseTechnicianJobsRepository(Supabase.instance.client)
+            : null);
   }
 
   @override
@@ -58,6 +67,9 @@ class _DormFixAppState extends State<DormFixApp> {
     locale: const Locale('vi'),
     supportedLocales: const [Locale('vi'), Locale('en')],
     localizationsDelegates: GlobalMaterialLocalizations.delegates,
-    home: StartupPage(controller: _authController),
+    home: StartupPage(
+      controller: _authController,
+      technicianJobsRepository: _technicianJobsRepository,
+    ),
   );
 }
