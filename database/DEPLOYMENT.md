@@ -21,3 +21,14 @@ Không chạy lại `001_schema.sql` trên project này. Thay đổi tiếp theo
 Đã triển khai 003_get_my_profile.sql và chạy database/tests/003_get_my_profile.sql. Bộ kiểm thử đạt cho 3 role, anon, thiếu danh tính/hồ sơ, cờ đổi mật khẩu, tài khoản locked/revoked và quyền đọc cột/ghi flag. Test dùng SET LOCAL ROLE và JWT sub mô phỏng trong SQL Editor, rollback mọi thay đổi; chưa phải kiểm thử đăng nhập HTTP/Flutter thực tế.
 
 Chỉ authenticated được gọi get_my_profile(); hàm không nhận user ID. Xem docs/auth-contract.md. Endpoint đổi mật khẩu phía server chưa triển khai.
+
+## Công việc Kỹ thuật viên — 15/10/2026
+
+- Project DormFix: `nxobutgnhceyabjbiiya`; kiểm tra trên SQL Editor của project.
+- Trước thay đổi: chưa có hai RPC Kỹ thuật viên; bucket `repair-images` đã private, giới hạn 5,242,880 byte và JPEG/PNG/WebP; chưa có Storage policy. Không có Kỹ thuật viên active đã hoàn tất cờ mật khẩu tạm.
+- Đã chạy migration 004 và toàn bộ `tests/004_technician_jobs.sql` trong cùng một transaction, đạt **PASS** rồi rollback. Nội dung SQL chạy khớp file nguồn sau khi bỏ comment/khoảng trắng.
+- Bộ test xác minh anon/thiếu danh tính/thiếu profile/sai role, locked/revoked/password gate, tám trạng thái, snapshot phòng/loại, contact, kết quả/phản hồi/ảnh/lịch sử, chuyển giao và quyền Storage metadata. Fixture dùng Auth user tổng hợp không có mật khẩu và đều rollback; sequence mã yêu cầu có thể có khoảng trống như thiết kế.
+- Sau đó đã áp dụng `004_technician_jobs.sql` với commit: `technician_list_jobs()` và `technician_get_job(uuid)` tồn tại; policy `repair_images_authorized_read` tồn tại đúng một lần. Xác minh không còn Auth user `@technician-test.invalid`.
+- Đã gọi cả hai RPC qua HTTP thật bằng publishable key, không có phiên đăng nhập: cùng trả HTTP 401 với SQLSTATE `42501`, từ chối quyền EXECUTE của anon.
+- Migration không đổi tài khoản, mật khẩu, cờ đổi mật khẩu hay yêu cầu có sẵn. Chưa chạy seed demo tùy chọn.
+- Giới hạn xác minh: SQL test dùng role/JWT-sub mô phỏng và Storage metadata. Chưa có phiên Kỹ thuật viên đủ điều kiện để kiểm thử toàn bộ Flutter/HTTP bằng tài khoản thật; chưa tải object ảnh thật. Luồng đổi mật khẩu bắt buộc là công việc DF-003 riêng, vẫn cần hoàn thiện.

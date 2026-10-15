@@ -7,8 +7,10 @@
 - Đã tạo khung Flutter cho Android và Web, theme chung và hỗ trợ tiếng Việt.
 - Đã thêm Supabase SDK và cấu hình khởi tạo; chưa có khóa trong repository.
 - Màn hình khởi động tạm thời chạy được khi chưa cấu hình Supabase. Khởi tạo SDK thành công không chứng minh database đã sẵn sàng.
-- Đã triển khai RPC `get_my_profile()` và kiểm thử quyền đọc hồ sơ; hợp đồng tại `docs/auth-contract.md`. Chưa triển khai giao diện đăng nhập, phân quyền điều hướng hay endpoint đổi mật khẩu phía server.
-- `database/001_schema.sql` đã chạy trên Supabase ngày 12/10/2026: 10 bảng bật RLS và 4 loại sự cố. Đã có 3 tài khoản/hồ sơ demo và phòng DEMO-A101 (xem `database/DEMO_ACCOUNTS.md`); chưa có các hàm ghi nghiệp vụ và Storage policies. Kết quả tại `database/DEPLOYMENT.md`. Đọc `database/README.md` trước khi triển khai.
+- Đã có giao diện đăng nhập/đăng xuất, khôi phục phiên và điều hướng ba vai trò bằng RPC `get_my_profile()`; hợp đồng tại `docs/auth-contract.md`. Endpoint đổi mật khẩu bắt buộc chưa có, tài khoản còn cờ mật khẩu tạm vẫn bị chặn nghiệp vụ.
+- Sinh viên đã có giao diện tạo/xem yêu cầu; phần này đang dùng mock trong RAM, chưa ghi Supabase.
+- Kỹ thuật viên đã có DF-020 danh sách công việc hiện được giao và DF-022 chi tiết chỉ đọc: sự cố, contact Sinh viên, ảnh, kết quả, phản hồi, lịch sử xử lý/phân công. Repository gọi Supabase thật; ảnh private tải bằng JWT. Hợp đồng và cách kiểm tra tại `docs/technician-jobs-contract.md`.
+- `database/001_schema.sql` đã chạy ngày 12/10/2026: 10 bảng bật RLS và 4 loại sự cố. `004_technician_jobs.sql` đã triển khai ngày 15/10/2026: hai RPC Kỹ thuật viên và policy đọc ảnh theo quyền yêu cầu. Đã có 3 hồ sơ demo/phòng DEMO-A101; chưa có các hàm ghi nghiệp vụ hoặc policy upload ảnh. Kết quả tại `database/DEPLOYMENT.md`. Đọc `database/README.md` trước khi triển khai và không chạy lại migration đã áp dụng.
 
 Backlog chính thức: [Backlog DormFix](https://docs.google.com/spreadsheets/d/1wyGEBfdeK9rxBVrfjD1VsaUn0o8sIh2cBu0Tgy27YfY/edit).
 
@@ -44,7 +46,7 @@ Cách khởi tạo theo [Supabase Flutter docs](https://supabase.com/docs/refere
 ```text
 app/
   lib/
-    app/                 # Root app và điều hướng (sẽ bổ sung)
+    app/                 # Root app và điều hướng theo trạng thái xác thực
     core/                # Config, theme, enum dùng chung
     shared/widgets/      # Widget tái sử dụng
     features/            # Từng nhóm chức năng
