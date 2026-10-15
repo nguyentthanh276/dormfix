@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/models/repair_status.dart';
-import '../../../core/theme/app_theme.dart';
 
 /// Nhãn màu hiển thị trạng thái yêu cầu.
 class StatusChip extends StatelessWidget {
@@ -11,9 +10,9 @@ class StatusChip extends StatelessWidget {
 
   Color get _color => switch (status) {
     RepairStatus.pending => Colors.grey.shade700,
-    RepairStatus.assigned || RepairStatus.inProgress => AppColors.blue,
+    RepairStatus.assigned || RepairStatus.inProgress => Color(0xFF0066B3),
     RepairStatus.awaitingConfirmation ||
-    RepairStatus.awaitingRework => AppColors.orange,
+    RepairStatus.awaitingRework => Color(0xFFF37021),
     RepairStatus.completed => Colors.green.shade700,
     RepairStatus.rejected || RepairStatus.cancelled => Colors.red.shade700,
   };
