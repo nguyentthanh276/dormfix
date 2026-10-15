@@ -27,20 +27,20 @@ void main() {
       expect(jobs.listCalls, 1);
       await tester.tap(find.text('Vòi nước rò rỉ'));
       await tester.pumpAndSettle();
-    await tester.dragUntilVisible(
-      find.textContaining('Điện thoại: 0900000001'),
-      find.byKey(const Key('technician-job-detail')),
-      const Offset(0, -200),
-    );
-    expect(find.textContaining('Họ tên: Sinh viên kiểm thử'), findsOneWidget);
-    expect(find.textContaining('Điện thoại: 0900000001'), findsOneWidget);
+      await tester.dragUntilVisible(
+        find.textContaining('Điện thoại: 0900000001'),
+        find.byKey(const Key('technician-job-detail')),
+        const Offset(0, -200),
+      );
+      expect(find.textContaining('Họ tên: Sinh viên kiểm thử'), findsOneWidget);
+      expect(find.textContaining('Điện thoại: 0900000001'), findsOneWidget);
       expect(jobs.detailCalls, 1);
 
       auth.expire();
       await tester.pumpAndSettle();
       expect(find.text('Đăng nhập DormFix'), findsOneWidget);
-    expect(find.textContaining('Sinh viên kiểm thử'), findsNothing);
-    expect(find.textContaining('0900000001'), findsNothing);
+      expect(find.textContaining('Sinh viên kiểm thử'), findsNothing);
+      expect(find.textContaining('0900000001'), findsNothing);
       await tester.binding.handlePopRoute();
       await tester.pumpAndSettle();
       expect(find.text('Đăng nhập DormFix'), findsOneWidget);
