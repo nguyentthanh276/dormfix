@@ -22,12 +22,15 @@ class AuthController extends ChangeNotifier {
           ? AuthViewState.checking
           : AuthViewState.unavailable {
     _sessionSubscription = _repository?.sessionChanges.listen((hasSession) {
-      if (!hasSession &&
-          (_state == AuthViewState.authenticated ||
-              _state == AuthViewState.changePasswordRequired)) {
+      final isProtected =
+          _state == AuthViewState.authenticated ||
+          _state == AuthViewState.changePasswordRequired;
+      if (!hasSession && (isProtected || _isLoading)) {
         _profile = null;
-        _error = 'Phiên đăng nhập đã kết thúc. Vui lòng đăng nhập lại.';
+        _error ??= 'Phiên đăng nhập đã kết thúc. Vui lòng đăng nhập lại.';
         _setState(AuthViewState.signedOut);
+      } else if (hasSession && isProtected && !_isLoading) {
+        unawaited(restoreSession());
       }
     });
   }
@@ -57,6 +60,7 @@ class AuthController extends ChangeNotifier {
     }
 
     _isLoading = true;
+    _profile = null;
     _error = null;
     _setState(AuthViewState.checking);
     try {
@@ -77,8 +81,13 @@ class AuthController extends ChangeNotifier {
       await _handleFailure(failure, duringRestore: true);
     } catch (_) {
       _profile = null;
-      _error = 'Không thể kiểm tra phiên đăng nhập do lỗi kết nối. Vui lòng thử lại.';
-      _setState(AuthViewState.retryRequired);
+      if (!repository.hasSession) {
+        _error = 'Phiên đăng nhập đã kết thúc. Vui lòng đăng nhập lại.';
+        _setState(AuthViewState.signedOut);
+      } else {
+        _error = 'Không thể kiểm tra phiên đăng nhập do lỗi kết nối. Vui lòng thử lại.';
+        _setState(AuthViewState.retryRequired);
+      }
     } finally {
       _isLoading = false;
       notifyListeners();
