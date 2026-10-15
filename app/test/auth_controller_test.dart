@@ -264,11 +264,13 @@ void main() {
           expect(find.text('Vai trò: ${role.label}'), findsOneWidget);
         }
         expect(find.text(_homeTitle(role)), findsOneWidget);
-        await tester.tap(
-          role == AppRole.student
-              ? find.byTooltip('Đăng xuất')
-              : find.text('Đăng xuất'),
-        );
+        if (role == AppRole.student) {
+          // Màn sinh viên tải dữ liệu mock (0,6 giây): chờ xong rồi sang tab Tài khoản.
+          await tester.pump(const Duration(seconds: 1));
+          await tester.tap(find.byIcon(Icons.person_outline));
+          await tester.pumpAndSettle();
+        }
+        await tester.tap(find.text('Đăng xuất'));
         await tester.pumpAndSettle();
 
         expect(find.text('Đăng nhập DormFix'), findsOneWidget);

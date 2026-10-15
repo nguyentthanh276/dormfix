@@ -1,7 +1,9 @@
 import '../../../core/models/repair_status.dart';
+import '../models/history_entry.dart';
 import '../models/incident_category.dart';
 import '../models/new_repair_request.dart';
 import '../models/repair_request.dart';
+import '../models/request_detail.dart';
 import 'request_repository.dart';
 
 /// Dữ liệu MOCK trong bộ nhớ (mất khi tắt app), dùng tạm vì backend chưa có API.
@@ -44,6 +46,41 @@ class MockRequestRepository implements RequestRepository {
     await Future.delayed(delay);
     if (failFetch) throw Exception('Mock: lỗi tải danh sách');
     return List.of(_requests);
+  }
+
+  @override
+  Future<RequestDetail> fetchRequestDetail(String requestId) async {
+    await Future.delayed(delay);
+    if (failFetch) throw Exception('Mock: lỗi tải chi tiết');
+    final r = _requests.firstWhere((e) => e.id == requestId);
+    final at = r.createdAt;
+    final history = [
+      HistoryEntry(
+        status: RepairStatus.pending,
+        note: 'Sinh viên gửi yêu cầu',
+        createdAt: at,
+      ),
+      if (r.status != RepairStatus.pending)
+        HistoryEntry(
+          status: RepairStatus.assigned,
+          note: 'Phân công cho Lê Văn Cường',
+          createdAt: at.add(const Duration(hours: 2)),
+        ),
+      if (r.status == RepairStatus.completed)
+        HistoryEntry(
+          status: RepairStatus.completed,
+          note: 'Đã thay bóng đèn mới',
+          createdAt: at.add(const Duration(hours: 24)),
+        ),
+    ];
+    final assigned = r.status != RepairStatus.pending;
+    return RequestDetail(
+      request: r,
+      description: 'Mô tả mẫu (mock) cho yêu cầu "${r.title}".',
+      history: history,
+      technicianName: assigned ? 'Lê Văn Cường' : null,
+      technicianPhone: assigned ? '0987 111 222' : null,
+    );
   }
 
   @override
