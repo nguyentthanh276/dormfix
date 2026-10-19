@@ -35,7 +35,9 @@ class SupabaseAuthRepository implements AuthRepository {
     try {
       await _client.auth.signInWithPassword(email: email, password: password);
     } on AuthException catch (error) {
-      if (error.statusCode == '400' || error.statusCode == '401') {
+      if (error.statusCode == '400' ||
+          error.statusCode == '401' ||
+          error.code == 'invalid_credentials') {
         throw const AuthFailure('Email hoặc mật khẩu không chính xác.');
       }
       throw const AuthFailure('Không thể đăng nhập lúc này. Vui lòng thử lại.');
