@@ -121,6 +121,12 @@ class _TestAuthRepository implements AuthRepository {
         canAccess: true,
       );
 
+  @override
+  Future<void> updatePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {}
+
   Future<void> close() => _changes.close();
 }
 
