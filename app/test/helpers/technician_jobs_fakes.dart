@@ -37,6 +37,9 @@ class TechnicianTestAuthRepository implements AuthRepository {
 
   @override
   Future<void> signOut() async => hasSession = false;
+  @override
+  Future<UserProfile> changePassword({required String newPassword}) async =>
+      profile.copyWith(mustChangePassword: false, canAccess: true);
   Future<void> dispose() => _sessions.close();
 }
 

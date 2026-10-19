@@ -353,6 +353,9 @@ class FakeAuthRepository implements AuthRepository {
   AuthFailure? signInFailure;
   Object? loadFailure;
   Object? signOutFailure;
+  Object? changePasswordFailure;
+  int changePasswordCount = 0;
+  String? lastNewPassword;
 
   @override
   Future<UserProfile> signIn({
@@ -378,6 +381,15 @@ class FakeAuthRepository implements AuthRepository {
     final failure = signOutFailure;
     if (failure != null) throw failure;
     hasSession = false;
+  }
+
+  @override
+  Future<UserProfile> changePassword({required String newPassword}) async {
+    changePasswordCount++;
+    lastNewPassword = newPassword;
+    final failure = changePasswordFailure;
+    if (failure != null) throw failure;
+    return profile.copyWith(mustChangePassword: false, canAccess: true);
   }
 
   Future<void> dispose() => _sessionController.close();
