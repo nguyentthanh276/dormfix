@@ -25,6 +25,7 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _submit() async {
+    FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate() || widget.controller.isLoading) {
       return;
     }
@@ -68,6 +69,11 @@ class _LoginPageState extends State<LoginPage> {
                     keyboardType: TextInputType.emailAddress,
                     textInputAction: TextInputAction.next,
                     autofillHints: const [AutofillHints.username],
+                    onChanged: (_) {
+                      if (widget.controller.error != null) {
+                        widget.controller.clearError();
+                      }
+                    },
                     decoration: const InputDecoration(
                       labelText: 'Email',
                       prefixIcon: Icon(Icons.email_outlined),
@@ -90,6 +96,11 @@ class _LoginPageState extends State<LoginPage> {
                     textInputAction: TextInputAction.done,
                     autofillHints: const [AutofillHints.password],
                     onFieldSubmitted: (_) => _submit(),
+                    onChanged: (_) {
+                      if (widget.controller.error != null) {
+                        widget.controller.clearError();
+                      }
+                    },
                     decoration: InputDecoration(
                       labelText: 'Mật khẩu',
                       prefixIcon: const Icon(Icons.lock_outline),
@@ -131,7 +142,10 @@ class _LoginPageState extends State<LoginPage> {
                         ? const SizedBox(
                             width: 20,
                             height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
                           )
                         : const Text('Đăng nhập'),
                   ),
