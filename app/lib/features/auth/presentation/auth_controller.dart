@@ -27,7 +27,9 @@ class AuthController extends ChangeNotifier {
           _state == AuthViewState.changePasswordRequired;
       if (!hasSession && (isProtected || _isLoading)) {
         _profile = null;
-        _error ??= 'Phiên đăng nhập đã kết thúc. Vui lòng đăng nhập lại.';
+        if (!_isExplicitSignOut) {
+          _error ??= 'Phiên đăng nhập đã kết thúc. Vui lòng đăng nhập lại.';
+        }
         _setState(AuthViewState.signedOut);
       } else if (hasSession && isProtected && !_isLoading) {
         unawaited(restoreSession());
@@ -37,6 +39,7 @@ class AuthController extends ChangeNotifier {
 
   final AuthRepository? _repository;
   StreamSubscription<bool>? _sessionSubscription;
+  bool _isExplicitSignOut = false;
 
   AuthViewState _state;
   AuthViewState get state => _state;
@@ -134,17 +137,20 @@ class AuthController extends ChangeNotifier {
     final repository = _repository;
     if (repository == null) return;
 
+    _isExplicitSignOut = true;
     _isLoading = true;
     _error = null;
     notifyListeners();
     try {
       await repository.signOut();
       _profile = null;
+      _error = null;
       _setState(AuthViewState.signedOut);
     } catch (_) {
       _error = 'Đăng xuất không thành công. Vui lòng thử lại.';
     } finally {
       _isLoading = false;
+      _isExplicitSignOut = false;
       notifyListeners();
     }
   }
