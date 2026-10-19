@@ -138,14 +138,12 @@ class _MessagePage extends StatelessWidget {
     required this.title,
     required this.message,
     required this.icon,
-    this.error,
     this.action,
   });
 
   final String title;
   final String message;
   final IconData icon;
-  final String? error;
   final Widget? action;
 
   @override
@@ -172,14 +170,6 @@ class _MessagePage extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               Text(message, textAlign: TextAlign.center),
-              if (error case final error?) ...[
-                const SizedBox(height: 12),
-                Text(
-                  error,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
-                  textAlign: TextAlign.center,
-                ),
-              ],
               if (action != null) ...[const SizedBox(height: 24), action!],
             ],
           ),

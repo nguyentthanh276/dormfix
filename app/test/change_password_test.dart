@@ -305,5 +305,11 @@ class _FakePasswordAuthRepository implements AuthRepository {
     return profile.copyWith(mustChangePassword: false, canAccess: true);
   }
 
+  @override
+  Future<void> updatePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {}
+
   Future<void> dispose() => _sessionController.close();
 }
