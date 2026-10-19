@@ -2,13 +2,26 @@
 abstract final class PasswordRules {
   static const minLength = 6;
 
+  /// Kiểm tra mật khẩu hiện tại: bắt buộc nhập.
+  static String? validateCurrentPassword(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Vui lòng nhập mật khẩu hiện tại.';
+    }
+    return null;
+  }
+
   /// Kiểm tra mật khẩu mới: bắt buộc nhập, tối thiểu 6 ký tự.
-  static String? validateNewPassword(String? value) {
+  static String? validateNewPassword(String? value, {String? currentPassword}) {
     if (value == null || value.isEmpty) {
       return 'Vui lòng nhập mật khẩu mới.';
     }
     if (value.length < minLength) {
       return 'Mật khẩu mới phải có ít nhất $minLength ký tự.';
+    }
+    if (currentPassword != null &&
+        currentPassword.isNotEmpty &&
+        value == currentPassword) {
+      return 'Mật khẩu mới không được trùng với mật khẩu hiện tại.';
     }
     return null;
   }

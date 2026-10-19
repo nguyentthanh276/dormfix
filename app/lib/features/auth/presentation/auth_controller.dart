@@ -188,6 +188,51 @@ class AuthController extends ChangeNotifier {
     }
   }
 
+  Future<bool> updatePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final repository = _repository;
+    if (repository == null) {
+      _error = 'Dịch vụ xác thực chưa được cấu hình.';
+      _setState(AuthViewState.unavailable);
+      notifyListeners();
+      return false;
+    }
+
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+    try {
+      await repository.updatePassword(
+        currentPassword: currentPassword,
+        newPassword: newPassword,
+      );
+      _error = null;
+      return true;
+    } on AuthFailure catch (failure) {
+      _error = failure.message;
+      if (failure.signOutRequired) {
+        _profile = null;
+        try {
+          await repository.signOut();
+        } catch (_) {
+          _error =
+              '${failure.message} Không thể kết thúc phiên đăng nhập; '
+              'vui lòng thử đăng xuất lại.';
+        }
+        _setState(AuthViewState.signedOut);
+      }
+      return false;
+    } catch (_) {
+      _error = 'Không thể đổi mật khẩu do lỗi kết nối. Vui lòng thử lại.';
+      return false;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
   void clearError() {
     _error = null;
     notifyListeners();
