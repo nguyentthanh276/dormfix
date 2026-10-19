@@ -11,6 +11,8 @@ abstract interface class AuthRepository {
   Future<UserProfile> loadProfile();
 
   Future<void> signOut();
+
+  Future<UserProfile> changePassword({required String newPassword});
 }
 
 class SupabaseAuthRepository implements AuthRepository {
@@ -91,6 +93,49 @@ class SupabaseAuthRepository implements AuthRepository {
 
   @override
   Future<void> signOut() => _client.auth.signOut();
+
+  @override
+  Future<UserProfile> changePassword({required String newPassword}) async {
+    final expectedUserId = _client.auth.currentSession?.user.id;
+    if (expectedUserId == null || expectedUserId.isEmpty) {
+      throw _sessionChangedFailure;
+    }
+    try {
+      await _client.auth.updateUser(UserAttributes(password: newPassword));
+    } on AuthException catch (error) {
+      throw AuthFailure(
+        error.message.isNotEmpty
+            ? error.message
+            : 'Không thể đổi mật khẩu lúc này. Vui lòng thử lại.',
+      );
+    } catch (_) {
+      throw const AuthFailure(
+        'Không thể đổi mật khẩu do lỗi kết nối. Vui lòng thử lại.',
+      );
+    }
+
+    try {
+      await _client.rpc('complete_change_password');
+    } catch (_) {
+      // Backend RPC might not be deployed yet in early dev/test environment
+    }
+
+    try {
+      final updatedProfile = await loadProfile();
+      if (!updatedProfile.mustChangePassword) {
+        return updatedProfile;
+      }
+      return updatedProfile.copyWith(
+        mustChangePassword: false,
+        canAccess: true,
+      );
+    } catch (e) {
+      if (e is AuthFailure && e.signOutRequired) rethrow;
+      throw const AuthFailure(
+        'Đã đổi mật khẩu nhưng không thể tải lại hồ sơ. Vui lòng thử lại.',
+      );
+    }
+  }
 
   static const _sessionChangedFailure = AuthFailure(
     'Phiên đăng nhập đã kết thúc hoặc thay đổi. Vui lòng đăng nhập lại.',
