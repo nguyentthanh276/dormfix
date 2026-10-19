@@ -114,6 +114,13 @@ class _TestAuthRepository implements AuthRepository {
   @override
   Future<void> signOut() async => expire();
 
+  @override
+  Future<UserProfile> changePassword({required String newPassword}) async =>
+      (await loadProfile()).copyWith(
+        mustChangePassword: false,
+        canAccess: true,
+      );
+
   Future<void> close() => _changes.close();
 }
 
