@@ -392,5 +392,22 @@ class FakeAuthRepository implements AuthRepository {
     return profile.copyWith(mustChangePassword: false, canAccess: true);
   }
 
+  Object? updatePasswordFailure;
+  int updatePasswordCount = 0;
+  String? lastUpdateCurrentPassword;
+  String? lastUpdateNewPassword;
+
+  @override
+  Future<void> updatePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    updatePasswordCount++;
+    lastUpdateCurrentPassword = currentPassword;
+    lastUpdateNewPassword = newPassword;
+    final failure = updatePasswordFailure;
+    if (failure != null) throw failure;
+  }
+
   Future<void> dispose() => _sessionController.close();
 }
