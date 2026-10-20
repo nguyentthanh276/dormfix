@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../core/models/app_role.dart';
 import '../features/admin_requests/presentation/admin_home_page.dart';
 import '../features/auth/presentation/auth_controller.dart';
+import '../features/auth/presentation/change_password_page.dart';
 import '../features/auth/presentation/login_page.dart';
 import '../features/student_requests/presentation/student_home_page.dart';
 import '../features/technician_jobs/data/technician_jobs_repository.dart';
@@ -49,7 +50,7 @@ class _StartupPageState extends State<StartupPage> {
         ),
         null => _InvalidProfilePage(controller: widget.controller),
       },
-      AuthViewState.changePasswordRequired => _PasswordChangeRequiredPage(
+      AuthViewState.changePasswordRequired => ChangePasswordPage(
         controller: widget.controller,
       ),
       AuthViewState.retryRequired => _StartupErrorPage(
@@ -132,41 +133,17 @@ class _StartupErrorPage extends StatelessWidget {
   );
 }
 
-class _PasswordChangeRequiredPage extends StatelessWidget {
-  const _PasswordChangeRequiredPage({required this.controller});
-
-  final AuthController controller;
-
-  @override
-  Widget build(BuildContext context) => _MessagePage(
-    title: 'Cần đổi mật khẩu',
-    message:
-        'Tài khoản cần đổi mật khẩu trước khi sử dụng DormFix. '
-        'Chức năng đổi mật khẩu an toàn hiện chưa được cung cấp. '
-        'Vui lòng liên hệ quản trị viên; không thể bỏ qua bước này.',
-    error: controller.error,
-    icon: Icons.password_outlined,
-    action: TextButton.icon(
-      onPressed: controller.isLoading ? null : controller.signOut,
-      icon: const Icon(Icons.logout),
-      label: const Text('Đăng xuất'),
-    ),
-  );
-}
-
 class _MessagePage extends StatelessWidget {
   const _MessagePage({
     required this.title,
     required this.message,
     required this.icon,
-    this.error,
     this.action,
   });
 
   final String title;
   final String message;
   final IconData icon;
-  final String? error;
   final Widget? action;
 
   @override
@@ -193,14 +170,6 @@ class _MessagePage extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               Text(message, textAlign: TextAlign.center),
-              if (error case final error?) ...[
-                const SizedBox(height: 12),
-                Text(
-                  error,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
-                  textAlign: TextAlign.center,
-                ),
-              ],
               if (action != null) ...[const SizedBox(height: 24), action!],
             ],
           ),

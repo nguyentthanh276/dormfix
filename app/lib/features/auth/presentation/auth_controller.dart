@@ -27,7 +27,9 @@ class AuthController extends ChangeNotifier {
           _state == AuthViewState.changePasswordRequired;
       if (!hasSession && (isProtected || _isLoading)) {
         _profile = null;
-        _error ??= 'Phiên đăng nhập đã kết thúc. Vui lòng đăng nhập lại.';
+        if (!_isExplicitSignOut) {
+          _error ??= 'Phiên đăng nhập đã kết thúc. Vui lòng đăng nhập lại.';
+        }
         _setState(AuthViewState.signedOut);
       } else if (hasSession && isProtected && !_isLoading) {
         unawaited(restoreSession());
@@ -37,6 +39,7 @@ class AuthController extends ChangeNotifier {
 
   final AuthRepository? _repository;
   StreamSubscription<bool>? _sessionSubscription;
+  bool _isExplicitSignOut = false;
 
   AuthViewState _state;
   AuthViewState get state => _state;
@@ -134,15 +137,96 @@ class AuthController extends ChangeNotifier {
     final repository = _repository;
     if (repository == null) return;
 
+    _isExplicitSignOut = true;
     _isLoading = true;
     _error = null;
     notifyListeners();
     try {
       await repository.signOut();
       _profile = null;
+      _error = null;
       _setState(AuthViewState.signedOut);
     } catch (_) {
       _error = 'Đăng xuất không thành công. Vui lòng thử lại.';
+    } finally {
+      _isLoading = false;
+      _isExplicitSignOut = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> changeTemporaryPassword({required String newPassword}) async {
+    final repository = _repository;
+    if (repository == null) {
+      _error = 'Dịch vụ xác thực chưa được cấu hình.';
+      _setState(AuthViewState.unavailable);
+      notifyListeners();
+      return;
+    }
+
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+    try {
+      final updatedProfile = await repository.changePassword(
+        newPassword: newPassword,
+      );
+      if (!repository.hasSession) {
+        _profile = null;
+        _error = 'Phiên đăng nhập đã kết thúc. Vui lòng đăng nhập lại.';
+        _setState(AuthViewState.signedOut);
+      } else {
+        _acceptProfile(updatedProfile);
+      }
+    } on AuthFailure catch (failure) {
+      await _handleFailure(failure, duringChangePassword: true);
+    } catch (_) {
+      _error = 'Không thể đổi mật khẩu do lỗi kết nối. Vui lòng thử lại.';
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> updatePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final repository = _repository;
+    if (repository == null) {
+      _error = 'Dịch vụ xác thực chưa được cấu hình.';
+      _setState(AuthViewState.unavailable);
+      notifyListeners();
+      return false;
+    }
+
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+    try {
+      await repository.updatePassword(
+        currentPassword: currentPassword,
+        newPassword: newPassword,
+      );
+      _error = null;
+      return true;
+    } on AuthFailure catch (failure) {
+      _error = failure.message;
+      if (failure.signOutRequired) {
+        _profile = null;
+        try {
+          await repository.signOut();
+        } catch (_) {
+          _error =
+              '${failure.message} Không thể kết thúc phiên đăng nhập; '
+              'vui lòng thử đăng xuất lại.';
+        }
+        _setState(AuthViewState.signedOut);
+      }
+      return false;
+    } catch (_) {
+      _error = 'Không thể đổi mật khẩu do lỗi kết nối. Vui lòng thử lại.';
+      return false;
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -188,10 +272,11 @@ class AuthController extends ChangeNotifier {
   Future<void> _handleFailure(
     AuthFailure failure, {
     bool duringRestore = false,
+    bool duringChangePassword = false,
   }) async {
-    _profile = null;
     _error = failure.message;
     if (failure.signOutRequired) {
+      _profile = null;
       try {
         await _repository?.signOut();
       } catch (_) {
@@ -199,11 +284,18 @@ class AuthController extends ChangeNotifier {
             '${failure.message} Không thể kết thúc phiên đăng nhập; '
             'vui lòng thử đăng xuất lại.';
       }
+      _setState(AuthViewState.signedOut);
+      return;
     }
+
+    if (duringChangePassword) {
+      _setState(AuthViewState.changePasswordRequired);
+      return;
+    }
+
+    _profile = null;
     _setState(
-      duringRestore && !failure.signOutRequired
-          ? AuthViewState.retryRequired
-          : AuthViewState.signedOut,
+      duringRestore ? AuthViewState.retryRequired : AuthViewState.signedOut,
     );
   }
 

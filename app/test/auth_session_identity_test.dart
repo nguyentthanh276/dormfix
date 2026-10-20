@@ -451,5 +451,15 @@ class _LegacyAuthRepository implements AuthRepository {
     _changes.add(false);
   }
 
+  @override
+  Future<UserProfile> changePassword({required String newPassword}) async =>
+      UserProfile.fromJson(_profileJson(_userA));
+
+  @override
+  Future<void> updatePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {}
+
   Future<void> dispose() => _changes.close();
 }

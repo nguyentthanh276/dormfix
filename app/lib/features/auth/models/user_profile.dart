@@ -86,6 +86,30 @@ class UserProfile {
   final RoomProfile? room;
   final bool mustChangePassword;
   final bool canAccess;
+
+  UserProfile copyWith({
+    String? id,
+    String? identityCode,
+    String? fullName,
+    String? email,
+    String? phone,
+    AppRole? role,
+    String? status,
+    RoomProfile? room,
+    bool? mustChangePassword,
+    bool? canAccess,
+  }) => UserProfile(
+    id: id ?? this.id,
+    identityCode: identityCode ?? this.identityCode,
+    fullName: fullName ?? this.fullName,
+    email: email ?? this.email,
+    phone: phone ?? this.phone,
+    role: role ?? this.role,
+    status: status ?? this.status,
+    room: room ?? this.room,
+    mustChangePassword: mustChangePassword ?? this.mustChangePassword,
+    canAccess: canAccess ?? this.canAccess,
+  );
 }
 
 class RoomProfile {
