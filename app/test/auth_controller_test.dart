@@ -42,6 +42,7 @@ void main() {
       await controller.signOut();
       expect(controller.state, AuthViewState.signedOut);
       expect(controller.profile, isNull);
+      expect(controller.error, isNull);
       expect(repository.hasSession, isFalse);
       controller.dispose();
     });
@@ -274,6 +275,7 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.text('Đăng nhập DormFix'), findsOneWidget);
+        expect(find.byKey(const Key('auth-error')), findsNothing);
         expect(find.text(_homeTitle(role)), findsNothing);
         await tester.binding.handlePopRoute();
         await tester.pumpAndSettle();
@@ -281,6 +283,32 @@ void main() {
       },
     );
   }
+
+  testWidgets('clears login error when typing new credentials', (tester) async {
+    final repository = FakeAuthRepository(profile(role: AppRole.student))
+      ..signInFailure = const AuthFailure(
+        'Email hoặc mật khẩu không chính xác.',
+      );
+    repositories.add(repository);
+    await tester.pumpWidget(DormFixApp(authRepository: repository));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      'user@example.com',
+    );
+    await tester.enterText(find.byType(TextFormField).at(1), 'wrong');
+    await tester.tap(find.text('Đăng nhập'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('auth-error')), findsOneWidget);
+    expect(find.text('Email hoặc mật khẩu không chính xác.'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextFormField).at(1), 'correct');
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('auth-error')), findsNothing);
+  });
 }
 
 String _homeTitle(AppRole role) => switch (role) {
@@ -327,6 +355,9 @@ class FakeAuthRepository implements AuthRepository {
   AuthFailure? signInFailure;
   Object? loadFailure;
   Object? signOutFailure;
+  Object? changePasswordFailure;
+  int changePasswordCount = 0;
+  String? lastNewPassword;
 
   @override
   Future<UserProfile> signIn({
@@ -352,6 +383,32 @@ class FakeAuthRepository implements AuthRepository {
     final failure = signOutFailure;
     if (failure != null) throw failure;
     hasSession = false;
+  }
+
+  @override
+  Future<UserProfile> changePassword({required String newPassword}) async {
+    changePasswordCount++;
+    lastNewPassword = newPassword;
+    final failure = changePasswordFailure;
+    if (failure != null) throw failure;
+    return profile.copyWith(mustChangePassword: false, canAccess: true);
+  }
+
+  Object? updatePasswordFailure;
+  int updatePasswordCount = 0;
+  String? lastUpdateCurrentPassword;
+  String? lastUpdateNewPassword;
+
+  @override
+  Future<void> updatePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    updatePasswordCount++;
+    lastUpdateCurrentPassword = currentPassword;
+    lastUpdateNewPassword = newPassword;
+    final failure = updatePasswordFailure;
+    if (failure != null) throw failure;
   }
 
   Future<void> dispose() => _sessionController.close();
