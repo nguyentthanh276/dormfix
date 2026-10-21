@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../core/models/app_role.dart';
 import '../../auth/presentation/auth_controller.dart';
 import '../data/technician_jobs_repository.dart';
+import '../data/technician_workflow_repository.dart';
 import '../models/technician_job.dart';
 import 'technician_job_detail_page.dart';
 import 'technician_job_widgets.dart';
@@ -14,10 +15,12 @@ class TechnicianHomePage extends StatefulWidget {
     super.key,
     required this.controller,
     this.repository,
+    this.workflowRepository,
   });
 
   final AuthController controller;
   final TechnicianJobsRepository? repository;
+  final TechnicianWorkflowRepository? workflowRepository;
 
   @override
   State<TechnicianHomePage> createState() => _TechnicianHomePageState();
@@ -30,6 +33,7 @@ class _TechnicianHomePageState extends State<TechnicianHomePage>
   String? _selectedJobId;
   String? _error;
   bool _loading = false;
+  bool _refreshQueued = false;
   bool _allowed = false;
   int _generation = 0;
 
@@ -61,7 +65,8 @@ class _TechnicianHomePageState extends State<TechnicianHomePage>
       widget.controller.addListener(_authChanged);
     }
     if (oldWidget.controller != widget.controller ||
-        oldWidget.repository != widget.repository) {
+        oldWidget.repository != widget.repository ||
+        oldWidget.workflowRepository != widget.workflowRepository) {
       _reset();
       _allowed = _hasAccess;
       _identity = _allowed ? widget.controller.profile!.id : null;
@@ -75,6 +80,7 @@ class _TechnicianHomePageState extends State<TechnicianHomePage>
     _selectedJobId = null;
     _error = null;
     _loading = false;
+    _refreshQueued = false;
   }
 
   void _authChanged() {
@@ -105,7 +111,11 @@ class _TechnicianHomePageState extends State<TechnicianHomePage>
 
   Future<void> _loadJobs() async {
     final repository = widget.repository;
-    if (_loading || !_hasAccess || repository == null) return;
+    if (!_hasAccess || repository == null) return;
+    if (_loading) {
+      _refreshQueued = true;
+      return;
+    }
     final identity = widget.controller.profile!.id;
     final generation = ++_generation;
     setState(() {
@@ -135,6 +145,10 @@ class _TechnicianHomePageState extends State<TechnicianHomePage>
     } finally {
       if (_isCurrent(generation, identity)) {
         setState(() => _loading = false);
+        if (_refreshQueued) {
+          _refreshQueued = false;
+          unawaited(_loadJobs());
+        }
       }
     }
   }
@@ -152,6 +166,18 @@ class _TechnicianHomePageState extends State<TechnicianHomePage>
       _loading = false;
       _jobs = [];
     });
+  }
+
+  void _jobWriteFinished(String identity) {
+    // A disposed detail may finish later, including after logout or switching
+    // accounts. Only refresh the Home belonging to the original technician.
+    if (!mounted ||
+        !_hasAccess ||
+        _identity != identity ||
+        widget.controller.profile?.id != identity) {
+      return;
+    }
+    unawaited(_loadJobs());
   }
 
   @override
@@ -178,6 +204,7 @@ class _TechnicianHomePageState extends State<TechnicianHomePage>
         ),
       );
     }
+    final identity = widget.controller.profile!.id;
     final selectedId = _selectedJobId;
     // Detail is local state, never a route on the application's Navigator.
     // Removing this authenticated Home removes every detail and photo.
@@ -234,6 +261,8 @@ class _TechnicianHomePageState extends State<TechnicianHomePage>
                         requestId: selectedId,
                         repository: widget.repository!,
                         onAccessDenied: _detailAccessDenied,
+                        workflowRepository: widget.workflowRepository,
+                        onJobChanged: () => _jobWriteFinished(identity),
                       )
                     : _buildList(),
               ),

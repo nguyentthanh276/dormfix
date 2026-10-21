@@ -1,4 +1,5 @@
 import '../../../core/models/repair_status.dart';
+import 'technician_workflow.dart';
 
 class TechnicianJob {
   const TechnicianJob({
@@ -60,6 +61,7 @@ class TechnicianJobDetail {
     required this.feedback,
     required this.history,
     required this.assignments,
+    this.workflow = const TechnicianWorkflowCapabilities(),
   });
 
   factory TechnicianJobDetail.fromJson(Map<String, dynamic> json) {
@@ -73,6 +75,9 @@ class TechnicianJobDetail {
       feedback: _list(json, 'feedback', JobFeedback.fromJson),
       history: _list(json, 'history', JobHistoryEntry.fromJson),
       assignments: _list(json, 'assignments', JobAssignment.fromJson),
+      workflow: json.containsKey('workflow')
+          ? TechnicianWorkflowCapabilities.fromJson(_map(json['workflow']))
+          : const TechnicianWorkflowCapabilities(),
     );
   }
 
@@ -84,6 +89,7 @@ class TechnicianJobDetail {
   final List<JobFeedback> feedback;
   final List<JobHistoryEntry> history;
   final List<JobAssignment> assignments;
+  final TechnicianWorkflowCapabilities workflow;
 }
 
 class JobAttachment {
