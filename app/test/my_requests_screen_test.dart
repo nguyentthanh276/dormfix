@@ -1,4 +1,6 @@
+import 'package:dormfix/core/models/repair_status.dart';
 import 'package:dormfix/features/student_requests/data/mock_request_repository.dart';
+import 'package:dormfix/features/student_requests/models/repair_request.dart';
 import 'package:dormfix/features/student_requests/presentation/my_requests_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -66,4 +68,80 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Vòi nước rò rỉ'), findsOneWidget);
   });
+
+  testWidgets(
+    'bộ lọc đã về Tất cả không tự chọn lại trạng thái sau lần tải tiếp theo',
+    (tester) async {
+      final pending = _request('1', 'Yêu cầu đang chờ', RepairStatus.pending);
+      final assigned = _request(
+        '2',
+        'Yêu cầu được giao',
+        RepairStatus.assigned,
+      );
+      final completed = _request(
+        '3',
+        'Yêu cầu đã xong',
+        RepairStatus.completed,
+      );
+      final repo = _ReloadingRequestsRepository([
+        [pending, completed],
+        [pending, assigned],
+        [pending, assigned, completed],
+      ]);
+      await _openList(tester, repo);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Hoàn tất (1)'));
+      await tester.pumpAndSettle();
+      expect(find.text('Yêu cầu đã xong'), findsOneWidget);
+      expect(find.text('Yêu cầu đang chờ'), findsNothing);
+
+      await tester
+          .widget<RefreshIndicator>(find.byType(RefreshIndicator))
+          .onRefresh();
+      await tester.pumpAndSettle();
+      expect(_chip(tester, 'Tất cả (2)').selected, isTrue);
+      expect(find.text('Yêu cầu đang chờ'), findsOneWidget);
+      expect(find.text('Yêu cầu được giao'), findsOneWidget);
+      expect(find.text('Yêu cầu đã xong'), findsNothing);
+
+      await tester
+          .widget<RefreshIndicator>(find.byType(RefreshIndicator))
+          .onRefresh();
+      await tester.pumpAndSettle();
+      expect(_chip(tester, 'Tất cả (3)').selected, isTrue);
+      expect(find.text('Yêu cầu đang chờ'), findsOneWidget);
+      expect(find.text('Yêu cầu được giao'), findsOneWidget);
+      expect(find.text('Yêu cầu đã xong'), findsOneWidget);
+      expect(repo.fetchCount, 3);
+    },
+  );
+}
+
+ChoiceChip _chip(WidgetTester tester, String label) =>
+    tester.widget<ChoiceChip>(
+      find.ancestor(of: find.text(label), matching: find.byType(ChoiceChip)),
+    );
+
+RepairRequest _request(String id, String title, RepairStatus status) =>
+    RepairRequest(
+      id: id,
+      requestCode: 'DF$id',
+      title: title,
+      categoryName: 'Điện',
+      roomCode: 'DEMO-A101',
+      status: status,
+      createdAt: DateTime.utc(2026, 10, 21),
+    );
+
+class _ReloadingRequestsRepository extends MockRequestRepository {
+  _ReloadingRequestsRepository(this._snapshots)
+    : super(roomCode: 'DEMO-A101', delay: Duration.zero);
+
+  final List<List<RepairRequest>> _snapshots;
+  int fetchCount = 0;
+
+  @override
+  Future<List<RepairRequest>> fetchMyRequests() async =>
+      List.of(_snapshots[fetchCount++]);
 }
