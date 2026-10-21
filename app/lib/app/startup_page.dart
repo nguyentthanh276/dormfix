@@ -42,7 +42,10 @@ class _StartupPageState extends State<StartupPage> {
       AuthViewState.signedOut => LoginPage(controller: widget.controller),
       AuthViewState.authenticated => switch (widget.controller.profile?.role) {
         AppRole.admin => AdminHomePage(controller: widget.controller),
-        AppRole.student => StudentHomePage(controller: widget.controller),
+        AppRole.student => StudentHomePage(
+          key: ValueKey('student-${widget.controller.profile?.id}'),
+          controller: widget.controller,
+        ),
         AppRole.technician => TechnicianHomePage(
           key: ValueKey('technician-${widget.controller.profile?.id}'),
           controller: widget.controller,
