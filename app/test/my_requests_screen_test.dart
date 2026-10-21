@@ -1,5 +1,5 @@
 import 'package:dormfix/features/student_requests/data/mock_request_repository.dart';
-import 'package:dormfix/features/student_requests/presentation/my_requests_page.dart';
+import 'package:dormfix/features/student_requests/presentation/my_requests_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -8,13 +8,7 @@ MockRequestRepository _repo() =>
 
 Future<void> _openList(WidgetTester tester, MockRequestRepository repo) async {
   await tester.pumpWidget(
-    MaterialApp(
-      home: MyRequestsPage(
-        repository: repo,
-        roomCode: 'DEMO-A101',
-        onSignOut: () {},
-      ),
-    ),
+    MaterialApp(home: MyRequestsScreen(repository: repo)),
   );
 }
 
@@ -36,7 +30,7 @@ void main() {
     await _openList(tester, _repo());
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('OLD-B202'), findsOneWidget);
+    expect(find.text('OLD-B202'), findsOneWidget);
   });
 
   testWidgets('lỗi tải thì báo lỗi, bấm Thử lại thì tải được', (tester) async {
@@ -54,25 +48,22 @@ void main() {
     expect(find.textContaining('Không tải được danh sách'), findsNothing);
   });
 
-  testWidgets('tạo yêu cầu mới xong thì danh sách có thêm yêu cầu đó', (
+  testWidgets('bấm nhãn trạng thái thì chỉ còn yêu cầu đúng trạng thái đó', (
     tester,
   ) async {
     await _openList(tester, _repo());
     await tester.pumpAndSettle();
+    expect(find.text('Vòi nước rò rỉ'), findsOneWidget); // Đã phân công
+    expect(find.text('Bóng đèn phòng bị cháy'), findsOneWidget); // Hoàn tất
 
-    await tester.tap(find.text('Tạo yêu cầu'));
-    await tester.pumpAndSettle();
-    await tester.enterText(find.byKey(const Key('titleField')), 'Hỏng quạt');
-    await tester.tap(find.byKey(const Key('categoryField')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Điện').last);
-    await tester.pumpAndSettle();
-    await tester.enterText(find.byKey(const Key('descField')), 'Không quay');
-    await tester.ensureVisible(find.text('Gửi yêu cầu')); // cuộn tới nút
-    await tester.tap(find.text('Gửi yêu cầu'));
+    await tester.tap(find.text('Hoàn tất (1)'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Hỏng quạt'), findsOneWidget); // đã quay về và tải lại
-    expect(find.text('DF000003'), findsOneWidget);
+    expect(find.text('Bóng đèn phòng bị cháy'), findsOneWidget);
+    expect(find.text('Vòi nước rò rỉ'), findsNothing);
+
+    await tester.tap(find.text('Tất cả (2)')); // bỏ lọc
+    await tester.pumpAndSettle();
+    expect(find.text('Vòi nước rò rỉ'), findsOneWidget);
   });
 }
