@@ -39,7 +39,13 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
     });
     try {
       final result = await widget.repository.fetchMyRequests();
-      if (mounted) setState(() => _requests = result); // đã đóng thì bỏ qua
+      if (mounted) {
+        setState(() {
+          _requests = result;
+          // Ghi nhận việc về Tất cả để trạng thái cũ không tự được chọn lại.
+          _status = RequestFilter.validSelection(result, _status);
+        });
+      }
     } catch (_) {
       if (mounted) {
         setState(() => _errorText = 'Không tải được danh sách. Hãy thử lại.');
