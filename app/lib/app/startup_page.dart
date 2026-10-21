@@ -9,6 +9,7 @@ import '../features/auth/presentation/change_password_page.dart';
 import '../features/auth/presentation/login_page.dart';
 import '../features/student_requests/presentation/student_home_page.dart';
 import '../features/technician_jobs/data/technician_jobs_repository.dart';
+import '../features/technician_jobs/data/technician_workflow_repository.dart';
 import '../features/technician_jobs/presentation/technician_home_page.dart';
 
 class StartupPage extends StatefulWidget {
@@ -16,10 +17,12 @@ class StartupPage extends StatefulWidget {
     super.key,
     required this.controller,
     this.technicianJobsRepository,
+    this.technicianWorkflowRepository,
   });
 
   final AuthController controller;
   final TechnicianJobsRepository? technicianJobsRepository;
+  final TechnicianWorkflowRepository? technicianWorkflowRepository;
 
   @override
   State<StartupPage> createState() => _StartupPageState();
@@ -50,6 +53,7 @@ class _StartupPageState extends State<StartupPage> {
           key: ValueKey('technician-${widget.controller.profile?.id}'),
           controller: widget.controller,
           repository: widget.technicianJobsRepository,
+          workflowRepository: widget.technicianWorkflowRepository,
         ),
         null => _InvalidProfilePage(controller: widget.controller),
       },
