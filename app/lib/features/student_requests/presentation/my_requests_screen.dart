@@ -5,6 +5,7 @@ import '../../../core/widgets/empty_view.dart';
 import '../../../core/widgets/error_view.dart';
 import '../data/request_repository.dart';
 import '../models/repair_request.dart';
+import '../models/request_filter.dart';
 import 'request_detail_screen.dart';
 import 'widgets/request_card.dart';
 
@@ -38,7 +39,13 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
     });
     try {
       final result = await widget.repository.fetchMyRequests();
-      if (mounted) setState(() => _requests = result); // đã đóng thì bỏ qua
+      if (mounted) {
+        setState(() {
+          _requests = result;
+          // Ghi nhận việc về Tất cả để trạng thái cũ không tự được chọn lại.
+          _status = RequestFilter.validSelection(result, _status);
+        });
+      }
     } catch (_) {
       if (mounted) {
         setState(() => _errorText = 'Không tải được danh sách. Hãy thử lại.');
@@ -68,12 +75,10 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
     }
 
     // Chỉ hiện nhãn của những trạng thái đang có trong danh sách.
-    final statuses = RepairStatus.values
-        .where((s) => _requests.any((r) => r.status == s))
-        .toList();
-    final list = _requests
-        .where((r) => _status == null || r.status == _status)
-        .toList();
+    final statuses = RequestFilter.availableStatuses(_requests);
+    // Trạng thái đang chọn có thể đã biến mất sau khi tải lại -> coi như "Tất cả".
+    final selected = RequestFilter.validSelection(_requests, _status);
+    final list = RequestFilter.byStatus(_requests, selected);
 
     return Column(
       children: [
@@ -84,11 +89,12 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
               children: [
-                _chip(null, 'Tất cả (${_requests.length})'),
+                _chip(null, 'Tất cả (${_requests.length})', selected),
                 for (final s in statuses)
                   _chip(
                     s,
-                    '${s.label} (${_requests.where((r) => r.status == s).length})',
+                    '${s.label} (${RequestFilter.count(_requests, s)})',
+                    selected,
                   ),
               ],
             ),
@@ -120,12 +126,13 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
     );
   }
 
-  Widget _chip(RepairStatus? status, String label) {
+  // [selected] là trạng thái đang chọn THỰC SỰ (đã qua validSelection), để nhãn sáng đúng.
+  Widget _chip(RepairStatus? status, String label, RepairStatus? selected) {
     return Padding(
       padding: const EdgeInsets.only(right: 6),
       child: ChoiceChip(
         label: Text(label, style: const TextStyle(fontSize: 12)),
-        selected: _status == status,
+        selected: selected == status,
         onSelected: (_) => setState(() => _status = status),
       ),
     );
