@@ -5,7 +5,7 @@ import '../../auth/presentation/auth_controller.dart';
 import '../../auth/presentation/role_home_page.dart';
 import '../data/mock_request_repository.dart';
 import '../data/request_repository.dart';
-import 'my_requests_page.dart';
+import 'student_shell_screen.dart';
 
 class StudentHomePage extends StatefulWidget {
   const StudentHomePage({super.key, required this.controller});
@@ -17,6 +17,8 @@ class StudentHomePage extends StatefulWidget {
 }
 
 class _StudentHomePageState extends State<StudentHomePage> {
+  final _navigatorKey = GlobalKey<NavigatorState>();
+
   // Đổi MockRequestRepository thành bản Supabase chỉ cần sửa đúng một dòng này.
   late final RequestRepository _repository = MockRequestRepository(
     roomCode: widget.controller.profile?.room?.code,
@@ -29,10 +31,26 @@ class _StudentHomePageState extends State<StudentHomePage> {
     if (profile == null || profile.role != AppRole.student) {
       return RoleHomePage(controller: widget.controller, role: AppRole.student);
     }
-    return MyRequestsPage(
-      repository: _repository,
-      roomCode: profile.room?.code,
-      onSignOut: widget.controller.signOut,
+    // Student detail routes belong to this authenticated Home. Removing the
+    // Home on logout/expiry also removes every detail above its tab shell.
+    return NavigatorPopHandler<Object?>(
+      onPopWithResult: (result) => _navigatorKey.currentState!.pop(result),
+      child: Navigator(
+        key: _navigatorKey,
+        pages: [
+          MaterialPage<void>(
+            key: ValueKey('student-shell-${profile.id}'),
+            child: StudentShellScreen(
+              repository: _repository,
+              name: profile.fullName,
+              roomCode: profile.room?.code,
+              onSignOut: widget.controller.signOut,
+            ),
+          ),
+        ],
+        // The shell page lives until StartupPage removes this Home.
+        onDidRemovePage: (_) {},
+      ),
     );
   }
 }
