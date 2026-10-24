@@ -46,6 +46,9 @@ void main() {
   testWidgets('hiển thị ảnh đính kèm từ sinh viên và mở dialog xem ảnh', (
     tester,
   ) async {
+    await tester.binding.setSurfaceSize(const Size(800, 1600));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
     await tester.pumpWidget(
       MaterialApp(
         home: RequestDetailScreen(repository: _repo(), requestId: 'mock-2'),
@@ -60,7 +63,10 @@ void main() {
     await tester.tap(find.text('anh_voi_nuoc_ro_ri_1.jpg'));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('Tệp: anh_voi_nuoc_ro_ri_1.jpg'), findsOneWidget);
+    expect(
+      find.textContaining('Tệp: anh_voi_nuoc_ro_ri_1.jpg'),
+      findsOneWidget,
+    );
 
     // Đóng dialog
     await tester.tap(find.text('Đóng'));
@@ -71,6 +77,9 @@ void main() {
   testWidgets('hiển thị kết quả sửa chữa từ kỹ thuật viên (DF-026/DF-010)', (
     tester,
   ) async {
+    await tester.binding.setSurfaceSize(const Size(800, 1600));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
     await tester.pumpWidget(
       MaterialApp(
         home: RequestDetailScreen(repository: _repo(), requestId: 'mock-1'),
@@ -79,10 +88,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Kết quả sửa chữa'), findsOneWidget);
-    expect(
-      find.textContaining('Đã thay mới bóng đèn LED 18W'),
-      findsOneWidget,
-    );
+    expect(find.textContaining('Đã thay mới bóng đèn LED 18W'), findsOneWidget);
     expect(find.text('anh_nghiem_thu_sua_chua.jpg'), findsOneWidget);
   });
 }

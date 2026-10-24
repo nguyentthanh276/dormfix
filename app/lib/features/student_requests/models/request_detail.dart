@@ -36,9 +36,11 @@ class RequestDetail {
   final List<HistoryEntry> history; // cũ nhất trước
   final String? technicianName; // null = chưa phân công
   final String? technicianPhone;
-  final List<String> studentPhotos; // ảnh đính kèm lúc sinh viên tạo yêu cầu (DF-007)
+  final List<String>
+  studentPhotos; // ảnh đính kèm lúc sinh viên tạo yêu cầu (DF-007)
   final List<RepairResultItem> results; // kết quả sửa chữa từ KTV (DF-026)
 
   /// Kết quả mới nhất (nếu có).
-  RepairResultItem? get latestResult => results.isNotEmpty ? results.last : null;
+  RepairResultItem? get latestResult =>
+      results.isNotEmpty ? results.last : null;
 }

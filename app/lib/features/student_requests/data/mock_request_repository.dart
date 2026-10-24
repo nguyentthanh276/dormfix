@@ -1,5 +1,3 @@
-import 'dart:math';
-
 import '../../../../core/models/repair_status.dart';
 import '../models/history_entry.dart';
 import '../models/incident_category.dart';
@@ -14,9 +12,9 @@ import 'request_repository.dart';
 /// Dữ liệu lưu trong bộ nhớ; mất khi tắt app.
 class MockRequestRepository implements RequestRepository {
   MockRequestRepository({
-    this.roomCode = 'DEMO-A101',
+    String? roomCode,
     this.delay = const Duration(milliseconds: 300),
-  });
+  }) : roomCode = roomCode ?? 'DEMO-A101';
 
   final String roomCode;
   final Duration delay;
@@ -100,7 +98,8 @@ class MockRequestRepository implements RequestRepository {
     final assigned = r.status != RepairStatus.pending;
 
     // Dữ liệu kết quả sửa chữa (DF-026 / DF-010)
-    final hasResult = r.status == RepairStatus.awaitingConfirmation ||
+    final hasResult =
+        r.status == RepairStatus.awaitingConfirmation ||
         r.status == RepairStatus.completed;
 
     final results = hasResult
@@ -118,12 +117,14 @@ class MockRequestRepository implements RequestRepository {
         : const <RepairResultItem>[];
 
     // Dữ liệu ảnh sinh viên gửi kèm (DF-007 / DF-010)
-    final studentPhotos = _customPhotos[r.id] ??
+    final studentPhotos =
+        _customPhotos[r.id] ??
         (r.id == 'mock-2'
             ? const ['anh_voi_nuoc_ro_ri_1.jpg', 'anh_voi_nuoc_ro_ri_2.jpg']
             : (r.id == 'mock-1' ? const ['anh_bong_den_chay.jpg'] : const []));
 
-    final description = _customDescriptions[r.id] ??
+    final description =
+        _customDescriptions[r.id] ??
         'Mô tả mẫu (mock) cho yêu cầu "${r.title}".';
 
     return RequestDetail(
