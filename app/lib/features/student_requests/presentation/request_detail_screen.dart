@@ -93,7 +93,11 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
         SectionCard(
           child: Row(
             children: [
-              Icon(categoryIcon(r.categoryName), size: 32, color: AppColors.primary),
+              Icon(
+                categoryIcon(r.categoryName),
+                size: 32,
+                color: AppColors.primary,
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -158,6 +162,12 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
 
         // Mô tả sự cố
         SectionCard(title: 'Mô tả', child: Text(d.description)),
+
+        // Tiến trình xử lý (Timeline)
+        SectionCard(
+          title: 'Tiến trình xử lý',
+          child: StatusTimeline(entries: d.history),
+        ),
 
         // Ảnh đính kèm từ sinh viên (DF-007 / DF-010)
         SectionCard(
@@ -260,12 +270,6 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
                   ],
                 ),
         ),
-
-        // Tiến trình xử lý (Timeline)
-        SectionCard(
-          title: 'Tiến trình xử lý',
-          child: StatusTimeline(entries: d.history),
-        ),
       ],
     );
   }
@@ -280,14 +284,18 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
           color: isResult ? Colors.green.shade50 : AppColors.fieldBg,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: isResult ? Colors.green.shade200 : AppColors.accent.withAlpha(100),
+            color: isResult
+                ? Colors.green.shade200
+                : AppColors.accent.withAlpha(100),
           ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              isResult ? Icons.assignment_turned_in_outlined : Icons.image_outlined,
+              isResult
+                  ? Icons.assignment_turned_in_outlined
+                  : Icons.image_outlined,
               size: 18,
               color: isResult ? Colors.green.shade700 : AppColors.primary,
             ),
