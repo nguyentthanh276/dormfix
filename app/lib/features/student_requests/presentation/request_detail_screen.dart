@@ -321,6 +321,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
   void _viewPhotoDialog(String photo, {required bool isResult}) {
     showDialog(
       context: context,
+      useRootNavigator: false,
       builder: (ctx) => AlertDialog(
         title: Text(isResult ? 'Ảnh nghiệm thu kết quả' : 'Ảnh đính kèm'),
         content: Column(
