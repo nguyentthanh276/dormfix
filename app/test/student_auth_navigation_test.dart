@@ -23,6 +23,21 @@ void main() {
     },
   );
 
+  testWidgets('session expiry removes the open student photo dialog', (
+    tester,
+  ) async {
+    final auth = _StudentAuthRepository();
+    await _openStudentDetail(tester, auth);
+    await _openStudentPhoto(tester);
+
+    auth.expire();
+    await tester.pumpAndSettle();
+
+    _expectNoStudentPhoto();
+    await _expectSignedOutWithoutDetail(tester);
+    _expectNoStudentPhoto();
+  });
+
   testWidgets(
     'explicit logout removes student detail and back cannot restore it',
     (tester) async {
@@ -71,6 +86,30 @@ void main() {
     },
   );
 
+  testWidgets('switching students removes the previous student photo dialog', (
+    tester,
+  ) async {
+    final auth = _StudentAuthRepository();
+    await _openStudentDetail(tester, auth);
+    await _openStudentPhoto(tester);
+
+    auth.switchStudent(_studentB);
+    await tester.pumpAndSettle();
+
+    _expectNoStudentPhoto();
+    expect(find.byType(RequestDetailScreen), findsNothing);
+    expect(find.text('DEMO-A101'), findsNothing);
+    expect(find.text('Yêu cầu của tôi'), findsOneWidget);
+    expect(find.text('DEMO-B202'), findsOneWidget);
+
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    _expectNoStudentPhoto();
+    expect(find.byType(RequestDetailScreen), findsNothing);
+    expect(find.text('DEMO-B202'), findsOneWidget);
+  });
+
   for (final systemBack in [false, true]) {
     testWidgets(
       '${systemBack ? 'system' : 'app bar'} back returns from student detail to the request list',
@@ -90,6 +129,21 @@ void main() {
       },
     );
   }
+}
+
+Future<void> _openStudentPhoto(WidgetTester tester) async {
+  final photo = find.text('anh_voi_nuoc_ro_ri_1.jpg');
+  await tester.scrollUntilVisible(photo, 250);
+  await tester.tap(photo);
+  await tester.pumpAndSettle();
+
+  expect(find.byType(AlertDialog), findsOneWidget);
+  expect(find.text('Tệp: anh_voi_nuoc_ro_ri_1.jpg'), findsOneWidget);
+}
+
+void _expectNoStudentPhoto() {
+  expect(find.byType(AlertDialog), findsNothing);
+  expect(find.textContaining('anh_voi_nuoc_ro_ri_1.jpg'), findsNothing);
 }
 
 Future<void> _openStudentDetail(
