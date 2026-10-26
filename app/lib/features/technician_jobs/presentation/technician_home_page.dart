@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 
 import '../../../core/models/app_role.dart';
 import '../../auth/presentation/auth_controller.dart';
+import '../../profile/data/profile_repository.dart';
+import '../../profile/presentation/profile_page.dart';
 import '../data/technician_jobs_repository.dart';
 import '../data/technician_workflow_repository.dart';
 import '../models/technician_job.dart';
@@ -16,11 +18,13 @@ class TechnicianHomePage extends StatefulWidget {
     required this.controller,
     this.repository,
     this.workflowRepository,
+    this.profileRepository,
   });
 
   final AuthController controller;
   final TechnicianJobsRepository? repository;
   final TechnicianWorkflowRepository? workflowRepository;
+  final ProfileRepository? profileRepository;
 
   @override
   State<TechnicianHomePage> createState() => _TechnicianHomePageState();
@@ -226,6 +230,25 @@ class _TechnicianHomePageState extends State<TechnicianHomePage>
             overflow: TextOverflow.ellipsis,
           ),
           actions: [
+            IconButton(
+              key: const Key('technician-profile-btn'),
+              tooltip: 'Hồ sơ cá nhân',
+              icon: const Icon(Icons.person_outline),
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => ProfilePage(
+                      controller: widget.controller,
+                      profileRepository: widget.profileRepository,
+                      onSignOut: () {
+                        Navigator.of(context).pop();
+                        unawaited(widget.controller.signOut());
+                      },
+                    ),
+                  ),
+                );
+              },
+            ),
             TextButton.icon(
               onPressed: widget.controller.isLoading
                   ? null

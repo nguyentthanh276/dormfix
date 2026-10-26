@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../auth/presentation/auth_controller.dart';
+import '../../profile/data/profile_repository.dart';
+import '../../profile/presentation/profile_page.dart';
 import '../data/request_repository.dart';
 import 'create_request_screen.dart';
 import 'my_requests_screen.dart';
@@ -12,6 +15,8 @@ class StudentShellScreen extends StatefulWidget {
   final String? name;
   final String? roomCode; // null nếu tài khoản chưa được gắn phòng
   final VoidCallback onSignOut;
+  final AuthController? controller;
+  final ProfileRepository? profileRepository;
 
   const StudentShellScreen({
     super.key,
@@ -19,6 +24,8 @@ class StudentShellScreen extends StatefulWidget {
     required this.name,
     required this.roomCode,
     required this.onSignOut,
+    this.controller,
+    this.profileRepository,
   });
 
   @override
@@ -35,11 +42,18 @@ class _StudentShellScreenState extends State<StudentShellScreen> {
       roomCode: widget.roomCode,
       onCreated: () => setState(() => _tab = 0), // tạo xong về danh sách
     ),
-    _ => StudentAccountScreen(
-      name: widget.name,
-      roomCode: widget.roomCode,
-      onSignOut: widget.onSignOut,
-    ),
+    _ => widget.controller != null
+        ? ProfilePage(
+            controller: widget.controller!,
+            profileRepository: widget.profileRepository,
+            onSignOut: widget.onSignOut,
+            title: 'Tài khoản',
+          )
+        : StudentAccountScreen(
+            name: widget.name,
+            roomCode: widget.roomCode,
+            onSignOut: widget.onSignOut,
+          ),
   };
 
   @override
