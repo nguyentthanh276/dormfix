@@ -26,72 +26,96 @@ void main() {
 
     test('validatePhone rejects invalid phone format', () {
       expect(PhoneRules.validatePhone('12345'), 'Số điện thoại không hợp lệ.');
-      expect(PhoneRules.validatePhone('090123456'), 'Số điện thoại không hợp lệ.');
-      expect(PhoneRules.validatePhone('09012345678'), 'Số điện thoại không hợp lệ.');
-      expect(PhoneRules.validatePhone('090123456a'), 'Số điện thoại không hợp lệ.');
-      expect(PhoneRules.validatePhone('+8490123456'), 'Số điện thoại không hợp lệ.');
-      expect(PhoneRules.validatePhone('+849012345678'), 'Số điện thoại không hợp lệ.');
+      expect(
+        PhoneRules.validatePhone('090123456'),
+        'Số điện thoại không hợp lệ.',
+      );
+      expect(
+        PhoneRules.validatePhone('09012345678'),
+        'Số điện thoại không hợp lệ.',
+      );
+      expect(
+        PhoneRules.validatePhone('090123456a'),
+        'Số điện thoại không hợp lệ.',
+      );
+      expect(
+        PhoneRules.validatePhone('+8490123456'),
+        'Số điện thoại không hợp lệ.',
+      );
+      expect(
+        PhoneRules.validatePhone('+849012345678'),
+        'Số điện thoại không hợp lệ.',
+      );
     });
 
-    test('validatePhone accepts valid 10-digit VN phone numbers and +84 format', () {
-      expect(PhoneRules.validatePhone('0901234567'), isNull);
-      expect(PhoneRules.validatePhone('0398765432'), isNull);
-      expect(PhoneRules.validatePhone('0000000001'), isNull);
-      expect(PhoneRules.validatePhone('+84901234567'), isNull);
-      expect(PhoneRules.validatePhone('  0901234567  '), isNull);
-    });
+    test(
+      'validatePhone accepts valid 10-digit VN phone numbers and +84 format',
+      () {
+        expect(PhoneRules.validatePhone('0901234567'), isNull);
+        expect(PhoneRules.validatePhone('0398765432'), isNull);
+        expect(PhoneRules.validatePhone('0000000001'), isNull);
+        expect(PhoneRules.validatePhone('+84901234567'), isNull);
+        expect(PhoneRules.validatePhone('  0901234567  '), isNull);
+      },
+    );
   });
 
   group('ProfileController', () {
-    test('validates phone and stops before calling repository on format error', () async {
-      final authRepo = _FakeAuthRepo(_studentProfile());
-      final authController = AuthController(repository: authRepo);
-      await authController.restoreSession();
+    test(
+      'validates phone and stops before calling repository on format error',
+      () async {
+        final authRepo = _FakeAuthRepo(_studentProfile());
+        final authController = AuthController(repository: authRepo);
+        await authController.restoreSession();
 
-      final profileRepo = _FakeProfileRepo();
-      final controller = ProfileController(
-        authController: authController,
-        repository: profileRepo,
-      );
+        final profileRepo = _FakeProfileRepo();
+        final controller = ProfileController(
+          authController: authController,
+          repository: profileRepo,
+        );
 
-      final success = await controller.updatePhone('invalid_phone');
+        final success = await controller.updatePhone('invalid_phone');
 
-      expect(success, isFalse);
-      expect(controller.error, 'Số điện thoại không hợp lệ.');
-      expect(profileRepo.updatePhoneCount, 0);
+        expect(success, isFalse);
+        expect(controller.error, 'Số điện thoại không hợp lệ.');
+        expect(profileRepo.updatePhoneCount, 0);
 
-      controller.clearError();
-      expect(controller.error, isNull);
+        controller.clearError();
+        expect(controller.error, isNull);
 
-      controller.dispose();
-      authController.dispose();
-      await authRepo.dispose();
-    });
+        controller.dispose();
+        authController.dispose();
+        await authRepo.dispose();
+      },
+    );
 
-    test('successfully updates phone and synchronizes profile in AuthController', () async {
-      final initialProfile = _studentProfile(phone: '0901111111');
-      final authRepo = _FakeAuthRepo(initialProfile);
-      final authController = AuthController(repository: authRepo);
-      await authController.restoreSession();
+    test(
+      'successfully updates phone and synchronizes profile in AuthController',
+      () async {
+        final initialProfile = _studentProfile(phone: '0901111111');
+        final authRepo = _FakeAuthRepo(initialProfile);
+        final authController = AuthController(repository: authRepo);
+        await authController.restoreSession();
 
-      final profileRepo = _FakeProfileRepo();
-      final controller = ProfileController(
-        authController: authController,
-        repository: profileRepo,
-      );
+        final profileRepo = _FakeProfileRepo();
+        final controller = ProfileController(
+          authController: authController,
+          repository: profileRepo,
+        );
 
-      final success = await controller.updatePhone('0909999999');
+        final success = await controller.updatePhone('0909999999');
 
-      expect(success, isTrue);
-      expect(controller.error, isNull);
-      expect(profileRepo.updatePhoneCount, 1);
-      expect(profileRepo.lastPhone, '0909999999');
-      expect(authController.profile?.phone, '0909999999');
+        expect(success, isTrue);
+        expect(controller.error, isNull);
+        expect(profileRepo.updatePhoneCount, 1);
+        expect(profileRepo.lastPhone, '0909999999');
+        expect(authController.profile?.phone, '0909999999');
 
-      controller.dispose();
-      authController.dispose();
-      await authRepo.dispose();
-    });
+        controller.dispose();
+        authController.dispose();
+        await authRepo.dispose();
+      },
+    );
 
     test('handles ProfileFailure and surfaces friendly message', () async {
       final authRepo = _FakeAuthRepo(_studentProfile());
@@ -99,7 +123,9 @@ void main() {
       await authController.restoreSession();
 
       final profileRepo = _FakeProfileRepo()
-        ..failure = const ProfileFailure('Không thể cập nhật số điện thoại lúc này.');
+        ..failure = const ProfileFailure(
+          'Không thể cập nhật số điện thoại lúc này.',
+        );
       final controller = ProfileController(
         authController: authController,
         repository: profileRepo,
@@ -144,50 +170,51 @@ void main() {
   });
 
   group('ProfilePage Widget Flow', () {
-    testWidgets('DF-005 Student Profile renders all read-only fields and room info', (
-      tester,
-    ) async {
-      final student = _studentProfile(
-        fullName: 'Sinh viên Nguyễn An',
-        identityCode: 'SV12345',
-        email: 'an.nguyen@dorm.test',
-        phone: '0901234567',
-        roomCode: 'DEMO-A101',
-      );
-      final authRepo = _FakeAuthRepo(student);
-      final authController = AuthController(repository: authRepo);
-      await authController.restoreSession();
+    testWidgets(
+      'DF-005 Student Profile renders all read-only fields and room info',
+      (tester) async {
+        final student = _studentProfile(
+          fullName: 'Sinh viên Nguyễn An',
+          identityCode: 'SV12345',
+          email: 'an.nguyen@dorm.test',
+          phone: '0901234567',
+          roomCode: 'DEMO-A101',
+        );
+        final authRepo = _FakeAuthRepo(student);
+        final authController = AuthController(repository: authRepo);
+        await authController.restoreSession();
 
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: AppTheme.light,
-          home: ProfilePage(controller: authController),
-        ),
-      );
-      await tester.pumpAndSettle();
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: AppTheme.light,
+            home: ProfilePage(controller: authController),
+          ),
+        );
+        await tester.pumpAndSettle();
 
-      // Tiêu đề trang
-      expect(find.text('Hồ sơ cá nhân'), findsOneWidget);
+        // Tiêu đề trang
+        expect(find.text('Hồ sơ cá nhân'), findsOneWidget);
 
-      // Thông tin hiển thị
-      expect(find.text('Sinh viên Nguyễn An'), findsOneWidget);
-      expect(find.text('Sinh viên'), findsOneWidget);
-      expect(find.text('Mã sinh viên'), findsOneWidget);
-      expect(find.text('SV12345'), findsOneWidget);
-      expect(find.text('Email'), findsOneWidget);
-      expect(find.text('an.nguyen@dorm.test'), findsOneWidget);
-      expect(find.text('Phòng'), findsOneWidget);
-      expect(find.text('DEMO-A101'), findsOneWidget);
-      expect(find.text('0901234567'), findsWidgets);
+        // Thông tin hiển thị
+        expect(find.text('Sinh viên Nguyễn An'), findsOneWidget);
+        expect(find.text('Sinh viên'), findsOneWidget);
+        expect(find.text('Mã sinh viên'), findsOneWidget);
+        expect(find.text('SV12345'), findsOneWidget);
+        expect(find.text('Email'), findsOneWidget);
+        expect(find.text('an.nguyen@dorm.test'), findsOneWidget);
+        expect(find.text('Phòng'), findsOneWidget);
+        expect(find.text('DEMO-A101'), findsOneWidget);
+        expect(find.text('0901234567'), findsWidgets);
 
-      // Các trường Email, Họ tên, Mã SV, Phòng ở hoàn toàn Read-only (không có TextFormField cho chúng)
-      // Chỉ có DUY NHẤT 1 TextFormField trên toàn màn hình (dành cho Số điện thoại mới)
-      expect(find.byType(TextFormField), findsOneWidget);
-      expect(find.byKey(const Key('profile-phone-input')), findsOneWidget);
+        // Các trường Email, Họ tên, Mã SV, Phòng ở hoàn toàn Read-only (không có TextFormField cho chúng)
+        // Chỉ có DUY NHẤT 1 TextFormField trên toàn màn hình (dành cho Số điện thoại mới)
+        expect(find.byType(TextFormField), findsOneWidget);
+        expect(find.byKey(const Key('profile-phone-input')), findsOneWidget);
 
-      authController.dispose();
-      await authRepo.dispose();
-    });
+        authController.dispose();
+        await authRepo.dispose();
+      },
+    );
 
     testWidgets('DF-018 Technician Profile renders info without room section', (
       tester,
@@ -247,8 +274,13 @@ void main() {
         await tester.pumpAndSettle();
 
         // Nhập chuỗi rỗng -> Báo lỗi bắt buộc nhập
-        await tester.enterText(find.byKey(const Key('profile-phone-input')), '');
-        await tester.ensureVisible(find.byKey(const Key('profile-save-phone-btn')));
+        await tester.enterText(
+          find.byKey(const Key('profile-phone-input')),
+          '',
+        );
+        await tester.ensureVisible(
+          find.byKey(const Key('profile-save-phone-btn')),
+        );
         await tester.tap(find.byKey(const Key('profile-save-phone-btn')));
         await tester.pumpAndSettle();
 
@@ -260,7 +292,9 @@ void main() {
           find.byKey(const Key('profile-phone-input')),
           '123456',
         );
-        await tester.ensureVisible(find.byKey(const Key('profile-save-phone-btn')));
+        await tester.ensureVisible(
+          find.byKey(const Key('profile-save-phone-btn')),
+        );
         await tester.tap(find.byKey(const Key('profile-save-phone-btn')));
         await tester.pumpAndSettle();
 
@@ -272,7 +306,9 @@ void main() {
           find.byKey(const Key('profile-phone-input')),
           '0988776655',
         );
-        await tester.ensureVisible(find.byKey(const Key('profile-save-phone-btn')));
+        await tester.ensureVisible(
+          find.byKey(const Key('profile-save-phone-btn')),
+        );
         await tester.tap(find.byKey(const Key('profile-save-phone-btn')));
         await tester.pumpAndSettle();
 
@@ -288,65 +324,67 @@ void main() {
       },
     );
 
-    testWidgets('Tapping change password button navigates to ActiveChangePasswordPage', (
-      tester,
-    ) async {
-      final student = _studentProfile();
-      final authRepo = _FakeAuthRepo(student);
-      final authController = AuthController(repository: authRepo);
-      await authController.restoreSession();
+    testWidgets(
+      'Tapping change password button navigates to ActiveChangePasswordPage',
+      (tester) async {
+        final student = _studentProfile();
+        final authRepo = _FakeAuthRepo(student);
+        final authController = AuthController(repository: authRepo);
+        await authController.restoreSession();
 
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: AppTheme.light,
-          home: ProfilePage(controller: authController),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      await tester.drag(find.byType(ListView), const Offset(0, -300));
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.byKey(const Key('profile-change-password-btn')));
-      await tester.pumpAndSettle();
-
-      // Đã mở màn hình ActiveChangePasswordPage (DF-004)
-      expect(find.byType(ActiveChangePasswordPage), findsOneWidget);
-      expect(find.byKey(const Key('current-password-input')), findsOneWidget);
-
-      authController.dispose();
-      await authRepo.dispose();
-    });
-
-    testWidgets('Tapping logout button invokes onSignOut / controller.signOut', (
-      tester,
-    ) async {
-      final student = _studentProfile();
-      final authRepo = _FakeAuthRepo(student);
-      final authController = AuthController(repository: authRepo);
-      await authController.restoreSession();
-
-      var customSignOutCalled = 0;
-
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: AppTheme.light,
-          home: ProfilePage(
-            controller: authController,
-            onSignOut: () => customSignOutCalled++,
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: AppTheme.light,
+            home: ProfilePage(controller: authController),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
+        );
+        await tester.pumpAndSettle();
 
-      await tester.tap(find.byKey(const Key('profile-logout-btn')));
-      await tester.pumpAndSettle();
+        await tester.drag(find.byType(ListView), const Offset(0, -300));
+        await tester.pumpAndSettle();
 
-      expect(customSignOutCalled, 1);
+        await tester.tap(find.byKey(const Key('profile-change-password-btn')));
+        await tester.pumpAndSettle();
 
-      authController.dispose();
-      await authRepo.dispose();
-    });
+        // Đã mở màn hình ActiveChangePasswordPage (DF-004)
+        expect(find.byType(ActiveChangePasswordPage), findsOneWidget);
+        expect(find.byKey(const Key('current-password-input')), findsOneWidget);
+
+        authController.dispose();
+        await authRepo.dispose();
+      },
+    );
+
+    testWidgets(
+      'Tapping logout button invokes onSignOut / controller.signOut',
+      (tester) async {
+        final student = _studentProfile();
+        final authRepo = _FakeAuthRepo(student);
+        final authController = AuthController(repository: authRepo);
+        await authController.restoreSession();
+
+        var customSignOutCalled = 0;
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: AppTheme.light,
+            home: ProfilePage(
+              controller: authController,
+              onSignOut: () => customSignOutCalled++,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byKey(const Key('profile-logout-btn')));
+        await tester.pumpAndSettle();
+
+        expect(customSignOutCalled, 1);
+
+        authController.dispose();
+        await authRepo.dispose();
+      },
+    );
 
     testWidgets('TechnicianHomePage profile button opens ProfilePage', (
       tester,
@@ -399,7 +437,12 @@ UserProfile _studentProfile({
   role: AppRole.student,
   status: 'active',
   room: roomCode != null
-      ? RoomProfile(id: 'room-1', code: roomCode, building: null, isActive: true)
+      ? RoomProfile(
+          id: 'room-1',
+          code: roomCode,
+          building: null,
+          isActive: true,
+        )
       : null,
   mustChangePassword: false,
   canAccess: true,
@@ -427,7 +470,9 @@ class _FakeAuthRepo implements AuthRepository {
   _FakeAuthRepo(this._profile);
 
   final UserProfile _profile;
-  final StreamController<bool> _changes = StreamController<bool>.broadcast(sync: true);
+  final StreamController<bool> _changes = StreamController<bool>.broadcast(
+    sync: true,
+  );
   bool _hasSession = true;
   int signOutCount = 0;
 
@@ -454,7 +499,8 @@ class _FakeAuthRepo implements AuthRepository {
   }
 
   @override
-  Future<UserProfile> changePassword({required String newPassword}) async => _profile;
+  Future<UserProfile> changePassword({required String newPassword}) async =>
+      _profile;
 
   @override
   Future<void> updatePassword({

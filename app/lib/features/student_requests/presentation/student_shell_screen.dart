@@ -42,18 +42,19 @@ class _StudentShellScreenState extends State<StudentShellScreen> {
       roomCode: widget.roomCode,
       onCreated: () => setState(() => _tab = 0), // tạo xong về danh sách
     ),
-    _ => widget.controller != null
-        ? ProfilePage(
-            controller: widget.controller!,
-            profileRepository: widget.profileRepository,
-            onSignOut: widget.onSignOut,
-            title: 'Tài khoản',
-          )
-        : StudentAccountScreen(
-            name: widget.name,
-            roomCode: widget.roomCode,
-            onSignOut: widget.onSignOut,
-          ),
+    _ =>
+      widget.controller != null
+          ? ProfilePage(
+              controller: widget.controller!,
+              profileRepository: widget.profileRepository,
+              onSignOut: widget.onSignOut,
+              title: 'Tài khoản',
+            )
+          : StudentAccountScreen(
+              name: widget.name,
+              roomCode: widget.roomCode,
+              onSignOut: widget.onSignOut,
+            ),
   };
 
   @override
