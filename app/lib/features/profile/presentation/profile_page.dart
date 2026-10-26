@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/models/app_role.dart';
-import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/info_row.dart';
 import '../../../core/widgets/section_card.dart';
 import '../../../core/widgets/user_avatar.dart';
@@ -161,8 +160,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   children: [
                     if (profile.identityCode != null)
                       InfoRow(identityLabel, profile.identityCode!),
-                    if (profile.email != null)
-                      InfoRow('Email', profile.email!),
+                    if (profile.email != null) InfoRow('Email', profile.email!),
                     if (isStudent) InfoRow('Phòng', roomCode),
                     InfoRow(
                       'Số điện thoại',
