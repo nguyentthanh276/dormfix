@@ -9,6 +9,7 @@ import 'package:dormfix/features/technician_jobs/models/technician_job.dart';
 import 'package:dormfix/features/technician_jobs/models/technician_workflow.dart';
 import 'package:dormfix/features/technician_jobs/presentation/technician_result_form.dart';
 import 'package:dormfix/features/technician_jobs/presentation/technician_job_detail_page.dart';
+import 'package:dormfix/features/technician_jobs/presentation/technician_job_photo.dart';
 import 'package:dormfix/features/technician_jobs/presentation/technician_home_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -36,23 +37,31 @@ TechnicianJobDetail _detail(
   RepairStatus status, {
   int version = 2,
   bool canStart = false,
+  bool canContinue = false,
   bool canSubmit = false,
+  List<JobAttachment> attachments = const [],
   List<JobResult> results = const [],
+  List<JobFeedback> feedback = const [],
+  List<JobHistoryEntry> history = const [],
   String? blockedReason,
+  TechnicianWorkflowCapabilities? workflow,
 }) => TechnicianJobDetail(
   job: _job(status, version: version),
   studentName: 'Sinh viên Nguyễn An',
   studentPhone: '0901234567',
-  attachments: const [],
+  attachments: attachments,
   results: results,
-  feedback: const [],
-  history: const [],
+  feedback: feedback,
+  history: history,
   assignments: const [],
-  workflow: TechnicianWorkflowCapabilities(
-    canStart: canStart,
-    canSubmitResult: canSubmit,
-    blockedReason: blockedReason,
-  ),
+  workflow:
+      workflow ??
+      TechnicianWorkflowCapabilities(
+        canStart: canStart,
+        canContinue: canContinue,
+        canSubmitResult: canSubmit,
+        blockedReason: blockedReason,
+      ),
 );
 
 JobResult _result(String id, String content) => JobResult(
@@ -64,8 +73,10 @@ JobResult _result(String id, String content) => JobResult(
 
 class _Workflow implements TechnicianWorkflowRepository {
   final starts = <({String requestId, int version})>[];
+  final continuations = <({String requestId, int version})>[];
   final submissions = <TechnicianResultSubmission>[];
   Future<TechnicianWriteReceipt> Function()? onStart;
+  Future<TechnicianWriteReceipt> Function()? onContinue;
   Future<TechnicianWriteReceipt> Function(TechnicianResultSubmission)? onSubmit;
 
   @override
@@ -78,6 +89,15 @@ class _Workflow implements TechnicianWorkflowRepository {
   }
 
   @override
+  Future<TechnicianWriteReceipt> continueJob({
+    required String requestId,
+    required int expectedVersion,
+  }) async {
+    continuations.add((requestId: requestId, version: expectedVersion));
+    return await onContinue!();
+  }
+
+  @override
   Future<TechnicianWriteReceipt> submitResult(
     TechnicianResultSubmission submission,
   ) async {
@@ -86,13 +106,16 @@ class _Workflow implements TechnicianWorkflowRepository {
   }
 }
 
-TechnicianWriteReceipt _receipt(RepairStatus status, {String? resultId}) =>
-    TechnicianWriteReceipt(
-      requestId: _jobId,
-      status: status,
-      version: 3,
-      resultId: resultId,
-    );
+TechnicianWriteReceipt _receipt(
+  RepairStatus status, {
+  int version = 3,
+  String? resultId,
+}) => TechnicianWriteReceipt(
+  requestId: _jobId,
+  status: status,
+  version: version,
+  resultId: resultId,
+);
 
 typedef _Body = Future<void> Function(
   WidgetTester tester,
@@ -118,7 +141,7 @@ Future<void> _mount(
   WidgetTester tester,
   TechnicianTestAuthRepository auth,
   TechnicianTestJobsRepository jobs,
-  _Workflow workflow,
+  _Workflow? workflow,
 ) async {
   jobs.jobs = [jobs.detail.job];
   await tester.pumpWidget(
@@ -159,7 +182,272 @@ Future<void> _openForm(
   );
 }
 
+Future<void> _scrollTo(WidgetTester tester, Finder target, double delta) async {
+  await tester.scrollUntilVisible(
+    target,
+    delta,
+    scrollable: find.byType(Scrollable).first,
+    maxScrolls: 35,
+  );
+  await tester.pumpAndSettle();
+}
+
 void main() {
+  _test('continue requires rework status and an explicit server capability', (
+    tester,
+    auth,
+    jobs,
+    workflow,
+  ) async {
+    jobs.detail = _detail(
+      RepairStatus.awaitingRework,
+      workflow: TechnicianWorkflowCapabilities.fromJson({
+        'can_start': false,
+        'can_submit_result': false,
+        'blocked_reason': 'CONTINUE_REQUIRED',
+      }),
+    );
+    await _mount(tester, auth, jobs, workflow);
+    expect(find.byKey(const Key('technician-continue-job')), findsNothing);
+    expect(
+      find.text('Cần xác nhận tiếp tục xử lý trước khi gửi kết quả mới.'),
+      findsOneWidget,
+    );
+    for (final status in RepairStatus.values.where(
+      (status) => status != RepairStatus.awaitingRework,
+    )) {
+      jobs.detail = _detail(status, canContinue: true);
+      await tester.pump(const Duration(seconds: 15));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('technician-continue-job')), findsNothing);
+    }
+    expect(workflow.continuations, isEmpty);
+  });
+
+  _test('continue stays unavailable without a workflow repository', (
+    tester,
+    auth,
+    jobs,
+    workflow,
+  ) async {
+    jobs.detail = _detail(RepairStatus.awaitingRework, canContinue: true);
+    await _mount(tester, auth, jobs, null);
+    expect(find.byKey(const Key('technician-continue-job')), findsNothing);
+    expect(find.text('Chi tiết công việc · Chỉ xem'), findsOneWidget);
+    expect(workflow.continuations, isEmpty);
+  });
+
+  _test(
+    'continue waits for polling, is single-flight and refreshes server capabilities',
+    (tester, auth, jobs, workflow) async {
+      jobs.detail = _detail(RepairStatus.awaitingRework, canContinue: true);
+      final pending = Completer<TechnicianWriteReceipt>();
+      workflow.onContinue = () => pending.future;
+      await _mount(tester, auth, jobs, workflow);
+      final poll = Completer<TechnicianJobDetail>();
+      jobs.loadDetail = () => poll.future;
+      await tester.pump(const Duration(seconds: 15));
+      await _tap(tester, 'technician-continue-job', settle: false);
+      expect(workflow.continuations, isEmpty);
+      poll.complete(
+        _detail(RepairStatus.awaitingRework, version: 3, canContinue: true),
+      );
+      await tester.pumpAndSettle();
+      jobs.loadDetail = null;
+      await _tap(tester, 'technician-continue-job', settle: false);
+      await _tap(tester, 'technician-continue-job', settle: false);
+      expect(workflow.continuations, [(requestId: _jobId, version: 3)]);
+      expect(
+        tester
+            .widget<FilledButton>(
+              find.byKey(const Key('technician-continue-job')),
+            )
+            .onPressed,
+        isNull,
+      );
+      final calls = jobs.detailCalls;
+      await tester.pump(const Duration(seconds: 15));
+      expect(jobs.detailCalls, calls, reason: 'Polling waits for a write.');
+      jobs.detail = _detail(RepairStatus.inProgress, version: 4);
+      jobs.jobs = [jobs.detail.job];
+      pending.complete(_receipt(RepairStatus.inProgress, version: 4));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('technician-continue-job')), findsNothing);
+      expect(
+        find.byKey(const Key('technician-open-result-form')),
+        findsNothing,
+      );
+      expect(find.text('Đã tiếp tục xử lý công việc.'), findsOneWidget);
+      expect(jobs.detailCalls, greaterThan(calls));
+      expect(jobs.listCalls, 2);
+      jobs.detail = _detail(
+        RepairStatus.inProgress,
+        version: 4,
+        canSubmit: true,
+      );
+      await tester.pump(const Duration(seconds: 15));
+      await tester.pumpAndSettle();
+      await _openForm(tester);
+      expect(find.byKey(const Key('technician-result-form')), findsOneWidget);
+      expect(workflow.starts, isEmpty);
+      expect(workflow.submissions, isEmpty);
+    },
+  );
+
+  _test(
+    'continuing preserves old results, feedback reasons and their photo groups',
+    (tester, auth, jobs, workflow) async {
+      final previous = technicianDetail(withPhotos: true);
+      TechnicianJobDetail context({bool continued = false}) => _detail(
+        continued ? RepairStatus.inProgress : RepairStatus.awaitingRework,
+        version: continued ? 3 : 2,
+        canContinue: !continued,
+        canSubmit: continued,
+        attachments: previous.attachments,
+        results: previous.results,
+        feedback: previous.feedback,
+        history: [
+          ...previous.history,
+          if (continued)
+            JobHistoryEntry(
+              id: 'continued-history',
+              action: 'continued',
+              actorName: 'Kỹ thuật viên Bình',
+              oldStatus: 'awaiting_rework',
+              newStatus: 'in_progress',
+              note: null,
+              occurredAt: technicianTestDate,
+            ),
+        ],
+      );
+      Future<void> expectContext() async {
+        for (final section in [
+          (title: 'Ảnh sự cố', photo: 'request-photo'),
+          (title: 'Kết quả sửa chữa', photo: 'result-photo'),
+          (title: 'Phản hồi của sinh viên', photo: 'feedback-photo'),
+        ]) {
+          await _scrollTo(tester, find.text(section.title), 250);
+          final card = find.ancestor(
+            of: find.text(section.title),
+            matching: find.byType(Card),
+          );
+          expect(
+            tester
+                .widgetList<TechnicianJobPhoto>(
+                  find.descendant(
+                    of: card,
+                    matching: find.byType(TechnicianJobPhoto),
+                  ),
+                )
+                .map((photo) => photo.attachment.id),
+            [section.photo],
+          );
+          if (section.photo == 'result-photo') {
+            expect(find.text(previous.results.single.content), findsOneWidget);
+          } else if (section.photo == 'feedback-photo') {
+            expect(find.text(previous.feedback.single.reason), findsOneWidget);
+          }
+        }
+      }
+
+      jobs.detail = context();
+      workflow.onContinue = () async {
+        jobs.detail = context(continued: true);
+        return _receipt(RepairStatus.inProgress);
+      };
+      await _mount(tester, auth, jobs, workflow);
+      await expectContext();
+      await _scrollTo(
+        tester,
+        find.byKey(const Key('technician-continue-job')),
+        -350,
+      );
+      await _tap(tester, 'technician-continue-job');
+      await expectContext();
+      await _scrollTo(tester, find.text('Lịch sử xử lý'), 250);
+      expect(find.text('Tiếp tục xử lý'), findsOneWidget);
+      expect(find.text('Chờ xử lý lại → Đang xử lý'), findsOneWidget);
+      expect(
+        jobs.attachmentCalls,
+        containsAll(['request-photo', 'result-photo', 'feedback-photo']),
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  for (final uncertain in [false, true]) {
+    _test(
+      '${uncertain ? 'uncertain' : 'conflicting'} continue refreshes authoritative status',
+      (tester, auth, jobs, workflow) async {
+        jobs.detail = _detail(RepairStatus.awaitingRework, canContinue: true);
+        workflow.onContinue = () async {
+          jobs.detail = _detail(
+            RepairStatus.inProgress,
+            version: 3,
+            canSubmit: true,
+          );
+          jobs.jobs = [jobs.detail.job];
+          throw TechnicianWorkflowFailure(
+            uncertain
+                ? 'Mất phản hồi. Kiểm tra trạng thái mới.'
+                : 'Công việc đã thay đổi.',
+            uncertain: uncertain,
+            conflict: !uncertain,
+          );
+        };
+        await _mount(tester, auth, jobs, workflow);
+        await _tap(tester, 'technician-continue-job');
+        expect(workflow.continuations, [(requestId: _jobId, version: 2)]);
+        expect(find.byKey(const Key('technician-continue-job')), findsNothing);
+        expect(
+          find.byKey(const Key('technician-open-result-form')),
+          findsOneWidget,
+        );
+        expect(
+          find.text(
+            uncertain
+                ? 'Mất phản hồi. Kiểm tra trạng thái mới.'
+                : 'Công việc đã thay đổi.',
+          ),
+          findsOneWidget,
+        );
+        expect(jobs.detailCalls, 2);
+        expect(jobs.listCalls, 2);
+      },
+    );
+  }
+
+  _test('denied continue removes contact, feedback and private photos', (
+    tester,
+    auth,
+    jobs,
+    workflow,
+  ) async {
+    final previous = technicianDetail(withPhotos: true);
+    jobs.detail = _detail(
+      RepairStatus.awaitingRework,
+      canContinue: true,
+      attachments: previous.attachments,
+      results: previous.results,
+      feedback: previous.feedback,
+    );
+    workflow.onContinue = () async => throw const TechnicianWorkflowFailure(
+      'Không còn quyền.',
+      accessDenied: true,
+    );
+    await _mount(tester, auth, jobs, workflow);
+    await _tap(tester, 'technician-continue-job');
+    expect(find.byKey(const Key('technician-job-detail')), findsNothing);
+    expect(
+      find.textContaining('Bạn không còn quyền xem công việc này'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('0901234567'), findsNothing);
+    expect(find.text(previous.feedback.single.reason), findsNothing);
+    expect(find.byType(TechnicianJobPhoto), findsNothing);
+    expect(jobs.detailCalls, 1);
+  });
+
   _test(
     'start is single-flight, uses current version and refreshes list/detail',
     (tester, auth, jobs, workflow) async {
@@ -434,40 +722,59 @@ void main() {
     expect(jobs.detailCalls, 2);
   });
 
-  for (final leave in ['back', 'logout']) {
-    _test('$leave during submit cannot restore old draft after completion', (
-      tester,
-      auth,
-      jobs,
-      workflow,
-    ) async {
-      jobs.detail = _detail(RepairStatus.inProgress, canSubmit: true);
-      final pending = Completer<TechnicianWriteReceipt>();
-      workflow.onSubmit = (_) => pending.future;
-      await _mount(tester, auth, jobs, workflow);
-      await _openForm(tester, content: 'Nội dung riêng tư');
-      await _tap(tester, 'technician-submit-result', settle: false);
-      if (leave == 'back') {
-        await tester.tap(find.byType(BackButton));
-      } else {
-        await tester.tap(find.text('Đăng xuất'));
-      }
-      await tester.pumpAndSettle();
-      expect(find.byKey(const Key('technician-result-form')), findsNothing);
-      pending.complete(
-        _receipt(
-          RepairStatus.awaitingConfirmation,
-          resultId: workflow.submissions.single.resultId,
-        ),
+  for (final action in ['submit', 'continue']) {
+    for (final leave in ['back', 'logout']) {
+      _test(
+        '$leave during $action cannot restore private data after completion',
+        (tester, auth, jobs, workflow) async {
+          final isContinue = action == 'continue';
+          jobs.detail = _detail(
+            isContinue ? RepairStatus.awaitingRework : RepairStatus.inProgress,
+            canContinue: isContinue,
+            canSubmit: !isContinue,
+            results: [
+              _result('old-private-result', 'Kết quả riêng tư trước đó'),
+            ],
+          );
+          final pending = Completer<TechnicianWriteReceipt>();
+          workflow.onContinue = () => pending.future;
+          workflow.onSubmit = (_) => pending.future;
+          await _mount(tester, auth, jobs, workflow);
+          if (isContinue) {
+            await _tap(tester, 'technician-continue-job', settle: false);
+          } else {
+            await _openForm(tester, content: 'Nội dung riêng tư');
+            await _tap(tester, 'technician-submit-result', settle: false);
+          }
+          if (leave == 'back') {
+            await tester.tap(find.byType(BackButton));
+          } else {
+            await tester.tap(find.text('Đăng xuất'));
+          }
+          await tester.pumpAndSettle();
+          expect(find.byKey(const Key('technician-result-form')), findsNothing);
+          pending.complete(
+            _receipt(
+              isContinue
+                  ? RepairStatus.inProgress
+                  : RepairStatus.awaitingConfirmation,
+              resultId: isContinue
+                  ? null
+                  : workflow.submissions.single.resultId,
+            ),
+          );
+          await tester.pumpAndSettle();
+          expect(find.text('Nội dung riêng tư'), findsNothing);
+          expect(find.text('Kết quả riêng tư trước đó'), findsNothing);
+          expect(find.textContaining('0901234567'), findsNothing);
+          expect(find.byKey(const Key('technician-job-detail')), findsNothing);
+          expect(tester.takeException(), isNull);
+        },
       );
-      await tester.pumpAndSettle();
-      expect(find.text('Nội dung riêng tư'), findsNothing);
-      expect(find.byKey(const Key('technician-job-detail')), findsNothing);
-      expect(tester.takeException(), isNull);
-    });
+    }
   }
 
-  for (final outcome in ['start', 'submit', 'uncertain']) {
+  for (final outcome in ['start', 'continue', 'submit', 'uncertain']) {
     _test('back during $outcome refreshes Home after pending write completes', (
       tester,
       auth,
@@ -475,15 +782,21 @@ void main() {
       workflow,
     ) async {
       final isStart = outcome == 'start';
+      final isContinue = outcome == 'continue';
       jobs.detail = isStart
           ? _detail(RepairStatus.assigned, canStart: true)
+          : isContinue
+          ? _detail(RepairStatus.awaitingRework, canContinue: true)
           : _detail(RepairStatus.inProgress, canSubmit: true);
       final pending = Completer<TechnicianWriteReceipt>();
       workflow.onStart = () => pending.future;
+      workflow.onContinue = () => pending.future;
       workflow.onSubmit = (_) => pending.future;
       await _mount(tester, auth, jobs, workflow);
       if (isStart) {
         await _tap(tester, 'technician-start-job', settle: false);
+      } else if (isContinue) {
+        await _tap(tester, 'technician-continue-job', settle: false);
       } else {
         await _openForm(tester);
         await _tap(tester, 'technician-submit-result', settle: false);
@@ -492,10 +805,16 @@ void main() {
       await tester.pumpAndSettle();
       expect(jobs.listCalls, 2);
       expect(
-        find.text(isStart ? 'Đã phân công' : 'Đang xử lý'),
+        find.text(
+          isStart
+              ? 'Đã phân công'
+              : isContinue
+              ? 'Chờ xử lý lại'
+              : 'Đang xử lý',
+        ),
         findsOneWidget,
       );
-      final nextStatus = isStart
+      final nextStatus = isStart || isContinue
           ? RepairStatus.inProgress
           : RepairStatus.awaitingConfirmation;
       jobs.jobs = [_job(nextStatus, version: 3)];
@@ -507,7 +826,9 @@ void main() {
         pending.complete(
           _receipt(
             nextStatus,
-            resultId: isStart ? null : workflow.submissions.single.resultId,
+            resultId: isStart || isContinue
+                ? null
+                : workflow.submissions.single.resultId,
           ),
         );
       }
@@ -523,45 +844,64 @@ void main() {
     });
   }
 
-  _test(
-    'old write completion cannot refresh a newly signed-in technician Home',
-    (tester, auth, jobs, workflow) async {
-      jobs.detail = _detail(RepairStatus.inProgress, canSubmit: true);
-      final pending = Completer<TechnicianWriteReceipt>();
-      workflow.onSubmit = (_) => pending.future;
-      await _mount(tester, auth, jobs, workflow);
-      final controller = tester
-          .widget<TechnicianHomePage>(find.byType(TechnicianHomePage))
-          .controller;
-      await _openForm(tester, content: 'Nội dung của tài khoản cũ');
-      await _tap(tester, 'technician-submit-result', settle: false);
-      await tester.tap(find.text('Đăng xuất'));
-      await tester.pumpAndSettle();
-      auth.profile = technicianProfile(id: 'technician-2');
-      jobs.jobs = [
-        technicianJob(id: 'new-job', title: 'Công việc của tài khoản mới'),
-      ];
-      await controller.signIn(email: 'new@example.com', password: 'temporary');
-      await tester.pumpAndSettle();
-      final calls = jobs.listCalls;
-      expect(find.text('Công việc của tài khoản mới'), findsOneWidget);
-      pending.complete(
-        _receipt(
-          RepairStatus.awaitingConfirmation,
-          resultId: workflow.submissions.single.resultId,
-        ),
-      );
-      await tester.pumpAndSettle();
-      expect(
-        jobs.listCalls,
-        calls,
-        reason: 'Old callbacks cannot read the new account.',
-      );
-      expect(find.text('Công việc của tài khoản mới'), findsOneWidget);
-      expect(find.text('Nội dung của tài khoản cũ'), findsNothing);
-      expect(tester.takeException(), isNull);
-    },
-  );
+  for (final action in ['submit', 'continue']) {
+    _test(
+      'old $action completion cannot refresh a newly signed-in technician Home',
+      (tester, auth, jobs, workflow) async {
+        final isContinue = action == 'continue';
+        jobs.detail = _detail(
+          isContinue ? RepairStatus.awaitingRework : RepairStatus.inProgress,
+          canContinue: isContinue,
+          canSubmit: !isContinue,
+          results: [_result('old-account-result', 'Kết quả của tài khoản cũ')],
+        );
+        final pending = Completer<TechnicianWriteReceipt>();
+        workflow.onContinue = () => pending.future;
+        workflow.onSubmit = (_) => pending.future;
+        await _mount(tester, auth, jobs, workflow);
+        final controller = tester
+            .widget<TechnicianHomePage>(find.byType(TechnicianHomePage))
+            .controller;
+        if (isContinue) {
+          await _tap(tester, 'technician-continue-job', settle: false);
+        } else {
+          await _openForm(tester, content: 'Nội dung của tài khoản cũ');
+          await _tap(tester, 'technician-submit-result', settle: false);
+        }
+        await tester.tap(find.text('Đăng xuất'));
+        await tester.pumpAndSettle();
+        auth.profile = technicianProfile(id: 'technician-2');
+        jobs.jobs = [
+          technicianJob(id: 'new-job', title: 'Công việc của tài khoản mới'),
+        ];
+        await controller.signIn(
+          email: 'new@example.com',
+          password: 'temporary',
+        );
+        await tester.pumpAndSettle();
+        final calls = jobs.listCalls;
+        expect(find.text('Công việc của tài khoản mới'), findsOneWidget);
+        pending.complete(
+          _receipt(
+            isContinue
+                ? RepairStatus.inProgress
+                : RepairStatus.awaitingConfirmation,
+            resultId: isContinue ? null : workflow.submissions.single.resultId,
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(
+          jobs.listCalls,
+          calls,
+          reason: 'Old callbacks cannot read the new account.',
+        );
+        expect(find.text('Công việc của tài khoản mới'), findsOneWidget);
+        expect(find.text('Nội dung của tài khoản cũ'), findsNothing);
+        expect(find.text('Kết quả của tài khoản cũ'), findsNothing);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
 
   testWidgets(
     'system photo picker keeps hidden draft until resumed access check',

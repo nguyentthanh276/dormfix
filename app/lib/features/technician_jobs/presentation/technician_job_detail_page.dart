@@ -238,6 +238,11 @@ class _TechnicianJobDetailPageState extends State<TechnicianJobDetailPage>
       detail.job.status == RepairStatus.assigned &&
       detail.workflow.canStart;
 
+  bool _canContinue(TechnicianJobDetail detail) =>
+      widget.workflowRepository != null &&
+      detail.job.status == RepairStatus.awaitingRework &&
+      detail.workflow.canContinue;
+
   bool _canSubmit(TechnicianJobDetail detail) =>
       widget.workflowRepository != null &&
       detail.job.status == RepairStatus.inProgress &&
@@ -260,6 +265,18 @@ class _TechnicianJobDetailPageState extends State<TechnicianJobDetailPage>
     );
   }
 
+  Future<void> _continueJob() async {
+    final detail = _detail;
+    if (detail == null || !_canContinue(detail)) return;
+    await _write(
+      () => widget.workflowRepository!.continueJob(
+        requestId: detail.job.id,
+        expectedVersion: detail.job.version,
+      ),
+      successMessage: 'Đã tiếp tục xử lý công việc.',
+    );
+  }
+
   Future<void> _submitResult(TechnicianResultSubmission submission) async {
     final detail = _detail;
     if (detail == null ||
@@ -277,6 +294,7 @@ class _TechnicianJobDetailPageState extends State<TechnicianJobDetailPage>
   Future<void> _write(
     Future<TechnicianWriteReceipt> Function() operation, {
     TechnicianResultSubmission? submission,
+    String successMessage = 'Đã bắt đầu xử lý công việc.',
   }) async {
     if (_writing || _inFlight || !_foreground || _denied) return;
     // Home can remain visible after this detail is closed during the write.
@@ -296,7 +314,7 @@ class _TechnicianJobDetailPageState extends State<TechnicianJobDetailPage>
         _photoRevision++;
         _returnToTop = true;
         _actionMessage = submission == null
-            ? 'Đã bắt đầu xử lý công việc.'
+            ? successMessage
             : 'Đã gửi kết quả. Đang chờ sinh viên xác nhận.';
       });
     } on TechnicianWorkflowFailure catch (failure) {
@@ -411,7 +429,9 @@ class _TechnicianJobDetailPageState extends State<TechnicianJobDetailPage>
                       ? 'Công việc đã hoàn tất. Thông tin chỉ để xem.'
                       : detail.job.status == RepairStatus.cancelled
                       ? 'Công việc đã hủy. Thông tin chỉ để xem.'
-                      : _canStart(detail) || _canSubmit(detail)
+                      : _canStart(detail) ||
+                            _canContinue(detail) ||
+                            _canSubmit(detail)
                       ? 'Chi tiết công việc'
                       : 'Chi tiết công việc · Chỉ xem',
                 ),
@@ -448,6 +468,24 @@ class _TechnicianJobDetailPageState extends State<TechnicianJobDetailPage>
                       ),
                     ),
                   ),
+                if (_canContinue(detail))
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: FilledButton.icon(
+                      key: const Key('technician-continue-job'),
+                      onPressed: _loading || _writing ? null : _continueJob,
+                      icon: _writing
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.play_arrow),
+                      label: Text(
+                        _writing ? 'Đang tiếp tục...' : 'Tiếp tục xử lý',
+                      ),
+                    ),
+                  ),
                 if (_canSubmit(detail) && !_showResultForm)
                   Padding(
                     padding: const EdgeInsets.only(top: 12),
@@ -480,6 +518,7 @@ class _TechnicianJobDetailPageState extends State<TechnicianJobDetailPage>
                   ),
                 if (widget.workflowRepository != null &&
                     !_canStart(detail) &&
+                    !_canContinue(detail) &&
                     !_canSubmit(detail))
                   Padding(
                     padding: const EdgeInsets.only(top: 12),
@@ -687,6 +726,7 @@ String _actionLabel(String action) => switch (action) {
   'created' || 'create' => 'Tạo yêu cầu',
   'assigned' || 'assign' => 'Phân công kỹ thuật viên',
   'started' || 'start' || 'in_progress' => 'Bắt đầu xử lý',
+  'continued' => 'Tiếp tục xử lý',
   'repair_reported' ||
   'result_submitted' ||
   'reported' => 'Báo cáo kết quả sửa chữa',
