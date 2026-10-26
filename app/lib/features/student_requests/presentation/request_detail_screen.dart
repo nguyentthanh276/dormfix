@@ -8,17 +8,12 @@ import '../../../core/widgets/section_card.dart';
 import '../../../core/widgets/status_chip.dart';
 import '../data/request_repository.dart';
 import '../models/request_detail.dart';
+import 'edit_request_screen.dart';
 import 'widgets/category_icon.dart';
 import 'widgets/status_timeline.dart';
 
 /// DF-010: Màn hình chi tiết yêu cầu sửa chữa.
-///
-/// Hiển thị đầy đủ thông tin:
-/// - Thông tin chung (Mã, Sự cố, Phòng, Trạng thái, KTV phụ trách)
-/// - Mô tả chi tiết của sinh viên
-/// - Ảnh đính kèm từ sinh viên (DF-007)
-/// - Kết quả sửa chữa từ Kỹ thuật viên (DF-026) kèm ảnh nghiệm thu
-/// - Lịch sử tiến trình xử lý sự cố (Timeline)
+/// DF-011: Hỗ trợ nút Chỉnh sửa yêu cầu khi ở trạng thái Chờ tiếp nhận (pending).
 class RequestDetailScreen extends StatefulWidget {
   final RequestRepository repository;
   final String requestId;
@@ -63,6 +58,22 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
     }
   }
 
+  Future<void> _navigateToEdit() async {
+    if (_detail == null) return;
+    final updated = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => EditRequestScreen(
+          repository: widget.repository,
+          detail: _detail!,
+          onUpdated: _load,
+        ),
+      ),
+    );
+    if (updated == true) {
+      _load();
+    }
+  }
+
   String _two(int n) => n.toString().padLeft(2, '0');
 
   String _formatDate(DateTime d) =>
@@ -70,8 +81,21 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final d = _detail;
+    final canEdit = d?.request.status == RepairStatus.pending;
+
     return Scaffold(
-      appBar: AppBar(title: Text(_detail?.request.requestCode ?? 'Chi tiết')),
+      appBar: AppBar(
+        title: Text(d?.request.requestCode ?? 'Chi tiết'),
+        actions: [
+          if (canEdit)
+            IconButton(
+              icon: const Icon(Icons.edit_outlined),
+              tooltip: 'Chỉnh sửa yêu cầu',
+              onPressed: _navigateToEdit,
+            ),
+        ],
+      ),
       body: _body(),
     );
   }
@@ -118,6 +142,24 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
             ],
           ),
         ),
+
+        // Nút chỉnh sửa nổi bật khi ở trạng thái Chờ tiếp nhận (DF-011)
+        if (r.status == RepairStatus.pending)
+          Padding(
+            padding: const EdgeInsets.only(top: 8, bottom: 4),
+            child: OutlinedButton.icon(
+              onPressed: _navigateToEdit,
+              icon: const Icon(Icons.edit_note, color: AppColors.primary),
+              label: const Text(
+                'Chỉnh sửa yêu cầu này',
+                style: TextStyle(color: AppColors.primary),
+              ),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: AppColors.primary),
+                padding: const EdgeInsets.symmetric(vertical: 10),
+              ),
+            ),
+          ),
 
         // Thông báo đặc biệt khi chờ sinh viên xác nhận (DF-013)
         if (r.status == RepairStatus.awaitingConfirmation)
