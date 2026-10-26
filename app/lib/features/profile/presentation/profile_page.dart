@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/models/app_role.dart';
-import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/info_row.dart';
 import '../../../core/widgets/section_card.dart';
 import '../../../core/widgets/user_avatar.dart';
