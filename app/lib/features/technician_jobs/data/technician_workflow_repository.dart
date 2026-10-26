@@ -14,6 +14,11 @@ abstract interface class TechnicianWorkflowRepository {
     required int expectedVersion,
   });
 
+  Future<TechnicianWriteReceipt> confirmTransfer({
+    required String requestId,
+    required int expectedVersion,
+  });
+
   Future<TechnicianWriteReceipt> submitResult(
     TechnicianResultSubmission submission,
   );
@@ -55,6 +60,17 @@ class SupabaseTechnicianWorkflowRepository
     exactReceipt: true,
   );
 
+  @override
+  Future<TechnicianWriteReceipt> confirmTransfer({
+    required String requestId,
+    required int expectedVersion,
+  }) => _transitionToInProgress(
+    rpcName: 'technician_confirm_transfer',
+    requestId: requestId,
+    expectedVersion: expectedVersion,
+    exactReceipt: true,
+  );
+
   Future<TechnicianWriteReceipt> _transitionToInProgress({
     required String rpcName,
     required String requestId,
@@ -83,7 +99,7 @@ class SupabaseTechnicianWorkflowRepository
       if (exactReceipt &&
           (json.length != 3 ||
               !json.keys.every({'request_id', 'status', 'version'}.contains))) {
-        throw const FormatException('Unexpected continue receipt fields.');
+        throw const FormatException('Unexpected transition receipt fields.');
       }
       final receipt = TechnicianWriteReceipt.fromJson(json);
       if (receipt.requestId != requestId ||
