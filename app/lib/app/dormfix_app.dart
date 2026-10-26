@@ -7,6 +7,7 @@ import '../features/auth/data/auth_repository.dart';
 import '../features/auth/presentation/auth_controller.dart';
 import '../features/technician_jobs/data/technician_jobs_repository.dart';
 import '../features/technician_jobs/data/technician_workflow_repository.dart';
+import '../features/profile/data/profile_repository.dart';
 import 'startup_page.dart';
 
 class DormFixApp extends StatefulWidget {
@@ -17,6 +18,7 @@ class DormFixApp extends StatefulWidget {
     this.authRepository,
     this.technicianJobsRepository,
     this.technicianWorkflowRepository,
+    this.profileRepository,
   });
 
   final bool backendReady;
@@ -24,6 +26,7 @@ class DormFixApp extends StatefulWidget {
   final AuthRepository? authRepository;
   final TechnicianJobsRepository? technicianJobsRepository;
   final TechnicianWorkflowRepository? technicianWorkflowRepository;
+  final ProfileRepository? profileRepository;
 
   @override
   State<DormFixApp> createState() => _DormFixAppState();
@@ -33,6 +36,7 @@ class _DormFixAppState extends State<DormFixApp> {
   late final AuthController _authController;
   late final TechnicianJobsRepository? _technicianJobsRepository;
   late final TechnicianWorkflowRepository? _technicianWorkflowRepository;
+  late final ProfileRepository? _profileRepository;
 
   @override
   void initState() {
@@ -60,6 +64,11 @@ class _DormFixAppState extends State<DormFixApp> {
         (widget.backendReady
             ? SupabaseTechnicianWorkflowRepository(Supabase.instance.client)
             : null);
+    _profileRepository =
+        widget.profileRepository ??
+        (widget.backendReady
+            ? SupabaseProfileRepository(Supabase.instance.client)
+            : null);
   }
 
   @override
@@ -80,6 +89,7 @@ class _DormFixAppState extends State<DormFixApp> {
       controller: _authController,
       technicianJobsRepository: _technicianJobsRepository,
       technicianWorkflowRepository: _technicianWorkflowRepository,
+      profileRepository: _profileRepository,
     ),
   );
 }

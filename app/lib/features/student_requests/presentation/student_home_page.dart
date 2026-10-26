@@ -3,14 +3,20 @@ import 'package:flutter/material.dart';
 import '../../../core/models/app_role.dart';
 import '../../auth/presentation/auth_controller.dart';
 import '../../auth/presentation/role_home_page.dart';
+import '../../profile/data/profile_repository.dart';
 import '../data/mock_request_repository.dart';
 import '../data/request_repository.dart';
 import 'student_shell_screen.dart';
 
 class StudentHomePage extends StatefulWidget {
-  const StudentHomePage({super.key, required this.controller});
+  const StudentHomePage({
+    super.key,
+    required this.controller,
+    this.profileRepository,
+  });
 
   final AuthController controller;
+  final ProfileRepository? profileRepository;
 
   @override
   State<StudentHomePage> createState() => _StudentHomePageState();
@@ -45,6 +51,8 @@ class _StudentHomePageState extends State<StudentHomePage> {
               name: profile.fullName,
               roomCode: profile.room?.code,
               onSignOut: widget.controller.signOut,
+              controller: widget.controller,
+              profileRepository: widget.profileRepository,
             ),
           ),
         ],
