@@ -116,10 +116,7 @@ void main() {
 
     // Kiểm tra lại dữ liệu trong repository
     final refreshed = await repo.fetchRequestDetail(created.id);
-    expect(
-      refreshed.request.title,
-      'Cửa sổ phòng bị kẹt chốt đã sửa tiêu đề',
-    );
+    expect(refreshed.request.title, 'Cửa sổ phòng bị kẹt chốt đã sửa tiêu đề');
     expect(refreshed.description, 'Mô tả mới đã được cập nhật bởi sinh viên');
     expect(
       refreshed.history.last.note,
