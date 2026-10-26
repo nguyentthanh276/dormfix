@@ -4,6 +4,9 @@ import '../../../core/models/repair_status.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/account_view.dart';
 import '../../../core/widgets/empty_view.dart';
+import '../../auth/presentation/auth_controller.dart';
+import '../../profile/data/profile_repository.dart';
+import '../../profile/presentation/profile_page.dart';
 import '../../student_requests/models/repair_request.dart';
 import '../../student_requests/presentation/widgets/request_card.dart';
 import 'technician_job_detail_screen.dart';
@@ -15,6 +18,8 @@ class TechnicianShellScreen extends StatefulWidget {
   final String name;
   final String phone;
   final VoidCallback onSignOut;
+  final AuthController? controller;
+  final ProfileRepository? profileRepository;
 
   const TechnicianShellScreen({
     super.key,
@@ -22,6 +27,8 @@ class TechnicianShellScreen extends StatefulWidget {
     required this.name,
     required this.phone,
     required this.onSignOut,
+    this.controller,
+    this.profileRepository,
   });
 
   @override
@@ -53,12 +60,19 @@ class _TechnicianShellScreenState extends State<TechnicianShellScreen> {
           jobs: widget.jobs.where((j) => !_open.contains(j.status)).toList(),
         );
       default:
-        return AccountView(
-          name: widget.name,
-          roleLabel: 'Kỹ thuật viên',
-          info: {'Số điện thoại': widget.phone},
-          onSignOut: widget.onSignOut,
-        );
+        return widget.controller != null
+            ? ProfilePage(
+                controller: widget.controller!,
+                profileRepository: widget.profileRepository,
+                onSignOut: widget.onSignOut,
+                title: 'Tài khoản',
+              )
+            : AccountView(
+                name: widget.name,
+                roleLabel: 'Kỹ thuật viên',
+                info: {'Số điện thoại': widget.phone},
+                onSignOut: widget.onSignOut,
+              );
     }
   }
 
