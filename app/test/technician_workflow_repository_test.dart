@@ -67,6 +67,7 @@ void main() {
     test('old details disable writes and server capabilities are parsed', () {
       final old = TechnicianJobDetail.fromJson(_detail());
       expect(old.workflow.canStart, isFalse);
+      expect(old.workflow.canContinue, isFalse);
       expect(old.workflow.canSubmitResult, isFalse);
       final current = TechnicianJobDetail.fromJson(
         _detail()
@@ -76,7 +77,20 @@ void main() {
             'blocked_reason': null,
           },
       );
+      expect(current.workflow.canContinue, isFalse);
       expect(current.workflow.canSubmitResult, isTrue);
+      final continuing = TechnicianJobDetail.fromJson(
+        _detail()
+          ..['workflow'] = {
+            'can_start': false,
+            'can_continue': true,
+            'can_submit_result': false,
+            'blocked_reason': 'CONTINUE_REQUIRED',
+          },
+      );
+      expect(continuing.workflow.canContinue, isTrue);
+      expect(continuing.workflow.canStart, isFalse);
+      expect(continuing.workflow.canSubmitResult, isFalse);
       for (final reason in [
         'READ_ONLY',
         'ASSIGNMENT_NOT_READY',
@@ -102,6 +116,24 @@ void main() {
             'can_submit_result': true,
             'blocked_reason': null,
           },
+          for (final actions in [
+            [true, true, false],
+            [false, true, true],
+            [true, true, true],
+          ])
+            {
+              'can_start': actions[0],
+              'can_continue': actions[1],
+              'can_submit_result': actions[2],
+              'blocked_reason': null,
+            },
+          for (final invalid in [null, 'true', 1])
+            {
+              'can_start': false,
+              'can_continue': invalid,
+              'can_submit_result': false,
+              'blocked_reason': null,
+            },
           {
             'can_start': 'true',
             'can_submit_result': false,
@@ -121,6 +153,21 @@ void main() {
         }
       },
     );
+
+    test('old-server awaiting rework never grants continue from status', () {
+      final detail = _detail();
+      (detail['request'] as Map<String, dynamic>)['status'] = 'awaiting_rework';
+      detail['workflow'] = {
+        'can_start': false,
+        'can_submit_result': false,
+        'blocked_reason': 'CONTINUE_REQUIRED',
+      };
+      expect(
+        TechnicianJobDetail.fromJson(detail).workflow.canContinue,
+        isFalse,
+      );
+      expect(const TechnicianWorkflowCapabilities().canContinue, isFalse);
+    });
 
     test(
       'photo MIME comes from bytes and bytes cannot mutate after selection',
@@ -256,6 +303,10 @@ void main() {
             throwsA(_denied),
           );
           await expectLater(
+            opened.repo.continueJob(requestId: _requestId, expectedVersion: 4),
+            throwsA(_denied),
+          );
+          await expectLater(
             opened.repo.submitResult(_submission()),
             throwsA(_denied),
           );
@@ -283,6 +334,211 @@ void main() {
         );
       }
       expect(calls, 0);
+    });
+
+    group('continue', () {
+      test(
+        'uses its own RPC with exact version/JWT and transition receipt',
+        () async {
+          final requests = <http.Request>[];
+          final opened = await open((request) async {
+            requests.add(request);
+            return _json(_startReceipt());
+          });
+          final receipt = await opened.repo.continueJob(
+            requestId: _requestId,
+            expectedVersion: 4,
+          );
+          expect(receipt.requestId, _requestId);
+          expect(receipt.status, RepairStatus.inProgress);
+          expect(receipt.version, 5);
+          expect(receipt.resultId, isNull);
+          expect(receipt.replayed, isFalse);
+          final request = requests.single;
+          expect(request.method, 'POST');
+          expect(request.url.path, '/rest/v1/rpc/technician_continue_job');
+          expect(jsonDecode(request.body), {
+            'p_request_id': _requestId,
+            'p_expected_version': 4,
+          });
+          _authenticated(request, opened.token);
+        },
+      );
+
+      test('invalid UUID/version inputs make no network calls', () async {
+        var calls = 0;
+        final opened = await open((_) async {
+          calls++;
+          return _json({});
+        });
+        for (final input in [
+          (id: '', version: 4),
+          (id: 'bad', version: 4),
+          (id: ' $_requestId', version: 4),
+          (id: _requestId, version: 0),
+          (id: _requestId, version: -1),
+        ]) {
+          await expectLater(
+            opened.repo.continueJob(
+              requestId: input.id,
+              expectedVersion: input.version,
+            ),
+            throwsA(
+              isA<TechnicianWorkflowFailure>()
+                  .having((e) => e.accessDenied, 'accessDenied', false)
+                  .having((e) => e.uncertain, 'uncertain', false),
+            ),
+          );
+        }
+        expect(calls, 0);
+      });
+
+      for (final code in [
+        '28000',
+        '42501',
+        'P0002',
+        'PGRST301',
+        'PGRST302',
+        'PGRST303',
+        '401',
+        '403',
+        'P0001',
+        '22023',
+        'PGRST202',
+      ]) {
+        test(
+          'maps $code without retrying or disclosing backend details',
+          () async {
+            var calls = 0;
+            final opened = await open((_) async {
+              calls++;
+              return _error(code, 'private-token-storage-path');
+            });
+            try {
+              await opened.repo.continueJob(
+                requestId: _requestId,
+                expectedVersion: 4,
+              );
+              fail('Expected failure');
+            } on TechnicianWorkflowFailure catch (error) {
+              expect(
+                error.accessDenied,
+                !['P0001', '22023', 'PGRST202'].contains(code),
+              );
+              expect(error.conflict, code == 'P0001');
+              expect(error.uncertain, isFalse);
+              expect(error.message, isNot(contains('private-token')));
+            }
+            expect(calls, 1);
+          },
+        );
+      }
+
+      final ambiguousReceipts = <String, Object?>{
+        'null response': null,
+        'array response': [_startReceipt()],
+        'wrong request': {..._startReceipt(), 'request_id': _otherId},
+        'invalid request UUID': {..._startReceipt(), 'request_id': 'bad'},
+        'unchanged version': {..._startReceipt(), 'version': 4},
+        'skipped version': {..._startReceipt(), 'version': 6},
+        'string version': {..._startReceipt(), 'version': '5'},
+        'wrong status': {..._startReceipt(), 'status': 'awaiting_confirmation'},
+        'missing status': {..._startReceipt()}..remove('status'),
+        'unexpected result ID': {..._startReceipt(), 'result_id': _otherId},
+        'null result ID': {..._startReceipt(), 'result_id': null},
+        'replayed result': {..._startReceipt(), 'replayed': true},
+        'non-replayed result field': {..._startReceipt(), 'replayed': false},
+      };
+      for (final entry in ambiguousReceipts.entries) {
+        test('${entry.key} is uncertain and never retried', () async {
+          var calls = 0;
+          final opened = await open((_) async {
+            calls++;
+            return _json(entry.value);
+          });
+          await expectLater(
+            opened.repo.continueJob(requestId: _requestId, expectedVersion: 4),
+            throwsA(
+              isA<TechnicianWorkflowFailure>()
+                  .having((e) => e.uncertain, 'uncertain', true)
+                  .having((e) => e.conflict, 'conflict', false),
+            ),
+          );
+          expect(calls, 1);
+        });
+      }
+
+      test('lost RPC response is uncertain with no automatic retry', () async {
+        var calls = 0;
+        final opened = await open((_) async {
+          calls++;
+          throw http.ClientException('private transport details');
+        });
+        await expectLater(
+          opened.repo.continueJob(requestId: _requestId, expectedVersion: 4),
+          throwsA(
+            isA<TechnicianWorkflowFailure>()
+                .having((e) => e.uncertain, 'uncertain', true)
+                .having(
+                  (e) => e.message,
+                  'message',
+                  isNot(contains('private')),
+                ),
+          ),
+        );
+        expect(calls, 1);
+      });
+
+      for (final sessionChange in ['account switch', 'session expiration']) {
+        for (final outcome in ['success', 'backend error', 'transport error']) {
+          test(
+            '$sessionChange during $outcome discards response as access denied',
+            () async {
+              final started = Completer<void>();
+              final response = Completer<http.Response>();
+              var calls = 0;
+              final opened = await open((_) async {
+                calls++;
+                started.complete();
+                return response.future;
+              });
+              final checked = expectLater(
+                opened.repo.continueJob(
+                  requestId: _requestId,
+                  expectedVersion: 4,
+                ),
+                throwsA(_denied.having((e) => e.uncertain, 'uncertain', false)),
+              );
+              await started.future;
+              final uid = sessionChange == 'account switch'
+                  ? _otherId
+                  : _technicianId;
+              await opened.client.auth.setInitialSession(
+                _session(
+                  _jwt(
+                    uid: uid,
+                    expired: sessionChange == 'session expiration',
+                  ),
+                  uid: uid,
+                ),
+              );
+              if (outcome == 'transport error') {
+                response.completeError(
+                  http.ClientException('private transport'),
+                );
+              } else {
+                response.complete(
+                  outcome == 'success'
+                      ? _json(_startReceipt())
+                      : _error('P0001', 'private backend'),
+                );
+              }
+              await checked;
+              expect(calls, 1);
+            },
+          );
+        }
+      }
     });
 
     for (final code in [
@@ -776,7 +1032,7 @@ Map<String, dynamic> _info(TechnicianResultSubmission submission) => {
   'size': submission.photos.first.sizeBytes,
   'content_type': submission.photos.first.mimeType,
 };
-http.Response _json(Object value, {int status = 200}) => http.Response(
+http.Response _json(Object? value, {int status = 200}) => http.Response(
   jsonEncode(value),
   status,
   headers: {'content-type': 'application/json; charset=utf-8'},

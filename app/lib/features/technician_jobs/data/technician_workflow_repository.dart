@@ -9,6 +9,11 @@ abstract interface class TechnicianWorkflowRepository {
     required int expectedVersion,
   });
 
+  Future<TechnicianWriteReceipt> continueJob({
+    required String requestId,
+    required int expectedVersion,
+  });
+
   Future<TechnicianWriteReceipt> submitResult(
     TechnicianResultSubmission submission,
   );
@@ -33,6 +38,28 @@ class SupabaseTechnicianWorkflowRepository
   Future<TechnicianWriteReceipt> startJob({
     required String requestId,
     required int expectedVersion,
+  }) => _transitionToInProgress(
+    rpcName: 'technician_start_job',
+    requestId: requestId,
+    expectedVersion: expectedVersion,
+  );
+
+  @override
+  Future<TechnicianWriteReceipt> continueJob({
+    required String requestId,
+    required int expectedVersion,
+  }) => _transitionToInProgress(
+    rpcName: 'technician_continue_job',
+    requestId: requestId,
+    expectedVersion: expectedVersion,
+    exactReceipt: true,
+  );
+
+  Future<TechnicianWriteReceipt> _transitionToInProgress({
+    required String rpcName,
+    required String requestId,
+    required int expectedVersion,
+    bool exactReceipt = false,
   }) async {
     var sent = false;
     String? userId;
@@ -45,20 +72,26 @@ class SupabaseTechnicianWorkflowRepository
       userId = _requireSession();
       sent = true;
       final result = await _client.rpc(
-        'technician_start_job',
+        rpcName,
         params: {
           'p_request_id': requestId,
           'p_expected_version': expectedVersion,
         },
       );
       _requireSession(userId);
-      final receipt = TechnicianWriteReceipt.fromJson(_jsonObject(result));
+      final json = _jsonObject(result);
+      if (exactReceipt &&
+          (json.length != 3 ||
+              !json.keys.every({'request_id', 'status', 'version'}.contains))) {
+        throw const FormatException('Unexpected continue receipt fields.');
+      }
+      final receipt = TechnicianWriteReceipt.fromJson(json);
       if (receipt.requestId != requestId ||
           receipt.version != expectedVersion + 1 ||
           receipt.status != RepairStatus.inProgress ||
           receipt.resultId != null ||
           receipt.replayed) {
-        throw const FormatException('Unexpected start receipt.');
+        throw const FormatException('Unexpected transition receipt.');
       }
       return receipt;
     } catch (error) {
