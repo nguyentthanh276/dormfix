@@ -111,7 +111,7 @@ update public.profiles set status='active',must_change_password=false where id=p
 set local role authenticated;
 do $$ declare v_detail jsonb; v_receipt jsonb; begin
  v_detail := public.technician_get_job(pg_temp.tw_id('r_main'));
- if ((v_detail->'workflow') - 'can_continue') is distinct from '{"can_start":true,"can_submit_result":false,"blocked_reason":null}'::jsonb then
+ if ((v_detail->'workflow') - 'can_continue' - 'can_confirm_transfer') is distinct from '{"can_start":true,"can_submit_result":false,"blocked_reason":null}'::jsonb then
    raise exception 'FAIL: initial workflow capability'; end if;
  if public.technician_get_job(pg_temp.tw_id('r_missing_assignment'))->'workflow'->>'blocked_reason' <> 'ASSIGNMENT_NOT_READY'
    or public.technician_get_job(pg_temp.tw_id('r_legacy'))->'workflow'->>'blocked_reason' <> 'START_REQUIRED'
