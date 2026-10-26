@@ -243,6 +243,11 @@ class _TechnicianJobDetailPageState extends State<TechnicianJobDetailPage>
       detail.job.status == RepairStatus.awaitingRework &&
       detail.workflow.canContinue;
 
+  bool _canConfirmTransfer(TechnicianJobDetail detail) =>
+      widget.workflowRepository != null &&
+      detail.job.status == RepairStatus.inProgress &&
+      detail.workflow.canConfirmTransfer;
+
   bool _canSubmit(TechnicianJobDetail detail) =>
       widget.workflowRepository != null &&
       detail.job.status == RepairStatus.inProgress &&
@@ -274,6 +279,18 @@ class _TechnicianJobDetailPageState extends State<TechnicianJobDetailPage>
         expectedVersion: detail.job.version,
       ),
       successMessage: 'Đã tiếp tục xử lý công việc.',
+    );
+  }
+
+  Future<void> _confirmTransfer() async {
+    final detail = _detail;
+    if (detail == null || !_canConfirmTransfer(detail)) return;
+    await _write(
+      () => widget.workflowRepository!.confirmTransfer(
+        requestId: detail.job.id,
+        expectedVersion: detail.job.version,
+      ),
+      successMessage: 'Đã xác nhận tiếp tục công việc.',
     );
   }
 
@@ -431,6 +448,7 @@ class _TechnicianJobDetailPageState extends State<TechnicianJobDetailPage>
                       ? 'Công việc đã hủy. Thông tin chỉ để xem.'
                       : _canStart(detail) ||
                             _canContinue(detail) ||
+                            _canConfirmTransfer(detail) ||
                             _canSubmit(detail)
                       ? 'Chi tiết công việc'
                       : 'Chi tiết công việc · Chỉ xem',
@@ -486,6 +504,24 @@ class _TechnicianJobDetailPageState extends State<TechnicianJobDetailPage>
                       ),
                     ),
                   ),
+                if (_canConfirmTransfer(detail))
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: FilledButton.icon(
+                      key: const Key('technician-confirm-transfer'),
+                      onPressed: _loading || _writing ? null : _confirmTransfer,
+                      icon: _writing
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.task_alt),
+                      label: Text(
+                        _writing ? 'Đang xác nhận...' : 'Xác nhận tiếp tục',
+                      ),
+                    ),
+                  ),
                 if (_canSubmit(detail) && !_showResultForm)
                   Padding(
                     padding: const EdgeInsets.only(top: 12),
@@ -519,6 +555,7 @@ class _TechnicianJobDetailPageState extends State<TechnicianJobDetailPage>
                 if (widget.workflowRepository != null &&
                     !_canStart(detail) &&
                     !_canContinue(detail) &&
+                    !_canConfirmTransfer(detail) &&
                     !_canSubmit(detail))
                   Padding(
                     padding: const EdgeInsets.only(top: 12),
@@ -727,6 +764,7 @@ String _actionLabel(String action) => switch (action) {
   'assigned' || 'assign' => 'Phân công kỹ thuật viên',
   'started' || 'start' || 'in_progress' => 'Bắt đầu xử lý',
   'continued' => 'Tiếp tục xử lý',
+  'transfer_confirmed' => 'Xác nhận tiếp tục',
   'repair_reported' ||
   'result_submitted' ||
   'reported' => 'Báo cáo kết quả sửa chữa',

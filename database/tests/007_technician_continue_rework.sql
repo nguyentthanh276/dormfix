@@ -122,7 +122,7 @@ reset role;
 do $$ declare v_key text; begin
  foreach v_key in array array['admin','student','missing'] loop
    perform set_config('request.jwt.claim.sub',pg_temp.tc_id(v_key)::text,true);
-   if public._technician_workflow_capabilities(pg_temp.tc_id('r_main')) is distinct from
+   if (public._technician_workflow_capabilities(pg_temp.tc_id('r_main')) - 'can_confirm_transfer') is distinct from
       '{"can_start":false,"can_continue":false,"can_submit_result":false,"blocked_reason":"READ_ONLY"}'::jsonb then
      raise exception 'FAIL: unauthorized capability %',v_key;
    end if;
@@ -150,13 +150,13 @@ set local role authenticated;
 do $$ declare v_key text; v_workflow jsonb; begin
  foreach v_key in array array['r_main','r_null','r_new_assignment'] loop
    v_workflow:=public.technician_get_job(pg_temp.tc_id(v_key))->'workflow';
-   if v_workflow is distinct from '{"can_start":false,"can_continue":true,"can_submit_result":false,"blocked_reason":"CONTINUE_REQUIRED"}'::jsonb then
+   if (v_workflow - 'can_confirm_transfer') is distinct from '{"can_start":false,"can_continue":true,"can_submit_result":false,"blocked_reason":"CONTINUE_REQUIRED"}'::jsonb then
      raise exception 'FAIL: rework capability %',v_key;
    end if;
  end loop;
- if public.technician_get_job(pg_temp.tc_id('r_transfer'))->'workflow' is distinct from
+ if ((public.technician_get_job(pg_temp.tc_id('r_transfer'))->'workflow') - 'can_confirm_transfer') is distinct from
    '{"can_start":false,"can_continue":false,"can_submit_result":false,"blocked_reason":"TRANSFER_CONFIRMATION_REQUIRED"}'::jsonb
-   or public.technician_get_job(pg_temp.tc_id('r_missing_assignment'))->'workflow' is distinct from
+   or ((public.technician_get_job(pg_temp.tc_id('r_missing_assignment'))->'workflow') - 'can_confirm_transfer') is distinct from
    '{"can_start":false,"can_continue":false,"can_submit_result":false,"blocked_reason":"ASSIGNMENT_NOT_READY"}'::jsonb then
    raise exception 'FAIL: transfer/missing-assignment capabilities';
  end if;
@@ -213,7 +213,7 @@ do $$ declare v_key text; v_receipt jsonb; begin
    if v_receipt is distinct from jsonb_build_object('request_id',pg_temp.tc_id(v_key),'status','in_progress','version',6) then
      raise exception 'FAIL: exact continue receipt %',v_key;
    end if;
-   if public.technician_get_job(pg_temp.tc_id(v_key))->'workflow' is distinct from
+   if ((public.technician_get_job(pg_temp.tc_id(v_key))->'workflow') - 'can_confirm_transfer') is distinct from
      '{"can_start":false,"can_continue":false,"can_submit_result":true,"blocked_reason":null}'::jsonb then
      raise exception 'FAIL: post-continue capability %',v_key;
    end if;

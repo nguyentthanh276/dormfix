@@ -68,6 +68,7 @@ void main() {
       final old = TechnicianJobDetail.fromJson(_detail());
       expect(old.workflow.canStart, isFalse);
       expect(old.workflow.canContinue, isFalse);
+      expect(old.workflow.canConfirmTransfer, isFalse);
       expect(old.workflow.canSubmitResult, isFalse);
       final current = TechnicianJobDetail.fromJson(
         _detail()
@@ -78,6 +79,7 @@ void main() {
           },
       );
       expect(current.workflow.canContinue, isFalse);
+      expect(current.workflow.canConfirmTransfer, isFalse);
       expect(current.workflow.canSubmitResult, isTrue);
       final continuing = TechnicianJobDetail.fromJson(
         _detail()
@@ -89,8 +91,20 @@ void main() {
           },
       );
       expect(continuing.workflow.canContinue, isTrue);
+      expect(continuing.workflow.canConfirmTransfer, isFalse);
       expect(continuing.workflow.canStart, isFalse);
       expect(continuing.workflow.canSubmitResult, isFalse);
+      final confirming = TechnicianWorkflowCapabilities.fromJson({
+        'can_start': false,
+        'can_continue': false,
+        'can_confirm_transfer': true,
+        'can_submit_result': false,
+        'blocked_reason': 'TRANSFER_CONFIRMATION_REQUIRED',
+      });
+      expect(confirming.canConfirmTransfer, isTrue);
+      expect(confirming.canStart, isFalse);
+      expect(confirming.canContinue, isFalse);
+      expect(confirming.canSubmitResult, isFalse);
       for (final reason in [
         'READ_ONLY',
         'ASSIGNMENT_NOT_READY',
@@ -134,6 +148,36 @@ void main() {
               'can_submit_result': false,
               'blocked_reason': null,
             },
+          for (final invalid in [null, 'true', 1])
+            {
+              'can_start': false,
+              'can_confirm_transfer': invalid,
+              'can_submit_result': false,
+              'blocked_reason': null,
+            },
+          for (final otherAction in [
+            'can_start',
+            'can_continue',
+            'can_submit_result',
+          ])
+            {
+              'can_start': false,
+              'can_continue': false,
+              'can_confirm_transfer': true,
+              'can_submit_result': false,
+              'blocked_reason': null,
+              otherAction: true,
+            },
+          {
+            'can_confirm_transfer': true,
+            'can_submit_result': false,
+            'blocked_reason': null,
+          },
+          {
+            'can_start': false,
+            'can_confirm_transfer': true,
+            'blocked_reason': null,
+          },
           {
             'can_start': 'true',
             'can_submit_result': false,
@@ -168,6 +212,38 @@ void main() {
       );
       expect(const TechnicianWorkflowCapabilities().canContinue, isFalse);
     });
+
+    test(
+      'old-server pending transfer never grants confirmation from status',
+      () {
+        final detail = _detail();
+        (detail['request'] as Map<String, dynamic>)['status'] = 'in_progress';
+        detail['workflow'] = {
+          'can_start': false,
+          'can_continue': false,
+          'can_submit_result': false,
+          'blocked_reason': 'TRANSFER_CONFIRMATION_REQUIRED',
+        };
+        expect(
+          TechnicianJobDetail.fromJson(detail).workflow.canConfirmTransfer,
+          isFalse,
+        );
+        expect(
+          const TechnicianWorkflowCapabilities().canConfirmTransfer,
+          isFalse,
+        );
+        expect(
+          TechnicianWorkflowCapabilities.fromJson({
+            'can_start': false,
+            'can_continue': false,
+            'can_confirm_transfer': false,
+            'can_submit_result': true,
+            'blocked_reason': null,
+          }).canConfirmTransfer,
+          isFalse,
+        );
+      },
+    );
 
     test(
       'photo MIME comes from bytes and bytes cannot mutate after selection',
@@ -307,6 +383,13 @@ void main() {
             throwsA(_denied),
           );
           await expectLater(
+            opened.repo.confirmTransfer(
+              requestId: _requestId,
+              expectedVersion: 4,
+            ),
+            throwsA(_denied),
+          );
+          await expectLater(
             opened.repo.submitResult(_submission()),
             throwsA(_denied),
           );
@@ -336,210 +419,254 @@ void main() {
       expect(calls, 0);
     });
 
-    group('continue', () {
-      test(
-        'uses its own RPC with exact version/JWT and transition receipt',
-        () async {
-          final requests = <http.Request>[];
-          final opened = await open((request) async {
-            requests.add(request);
-            return _json(_startReceipt());
-          });
-          final receipt = await opened.repo.continueJob(
-            requestId: _requestId,
-            expectedVersion: 4,
-          );
-          expect(receipt.requestId, _requestId);
-          expect(receipt.status, RepairStatus.inProgress);
-          expect(receipt.version, 5);
-          expect(receipt.resultId, isNull);
-          expect(receipt.replayed, isFalse);
-          final request = requests.single;
-          expect(request.method, 'POST');
-          expect(request.url.path, '/rest/v1/rpc/technician_continue_job');
-          expect(jsonDecode(request.body), {
-            'p_request_id': _requestId,
-            'p_expected_version': 4,
-          });
-          _authenticated(request, opened.token);
-        },
-      );
-
-      test('invalid UUID/version inputs make no network calls', () async {
-        var calls = 0;
-        final opened = await open((_) async {
-          calls++;
-          return _json({});
-        });
-        for (final input in [
-          (id: '', version: 4),
-          (id: 'bad', version: 4),
-          (id: ' $_requestId', version: 4),
-          (id: _requestId, version: 0),
-          (id: _requestId, version: -1),
-        ]) {
-          await expectLater(
-            opened.repo.continueJob(
-              requestId: input.id,
-              expectedVersion: input.version,
-            ),
-            throwsA(
-              isA<TechnicianWorkflowFailure>()
-                  .having((e) => e.accessDenied, 'accessDenied', false)
-                  .having((e) => e.uncertain, 'uncertain', false),
-            ),
-          );
-        }
-        expect(calls, 0);
-      });
-
-      for (final code in [
-        '28000',
-        '42501',
-        'P0002',
-        'PGRST301',
-        'PGRST302',
-        'PGRST303',
-        '401',
-        '403',
-        'P0001',
-        '22023',
-        'PGRST202',
-      ]) {
+    for (final confirmTransfer in [false, true]) {
+      group(confirmTransfer ? 'confirm transfer' : 'continue', () {
+        Future<TechnicianWriteReceipt> transition(
+          SupabaseTechnicianWorkflowRepository repo, {
+          required String requestId,
+          required int expectedVersion,
+        }) => confirmTransfer
+            ? repo.confirmTransfer(
+                requestId: requestId,
+                expectedVersion: expectedVersion,
+              )
+            : repo.continueJob(
+                requestId: requestId,
+                expectedVersion: expectedVersion,
+              );
         test(
-          'maps $code without retrying or disclosing backend details',
+          'uses its own RPC with exact version/JWT and transition receipt',
           () async {
-            var calls = 0;
-            final opened = await open((_) async {
-              calls++;
-              return _error(code, 'private-token-storage-path');
+            final requests = <http.Request>[];
+            final opened = await open((request) async {
+              requests.add(request);
+              return _json(_startReceipt());
             });
-            try {
-              await opened.repo.continueJob(
-                requestId: _requestId,
-                expectedVersion: 4,
-              );
-              fail('Expected failure');
-            } on TechnicianWorkflowFailure catch (error) {
-              expect(
-                error.accessDenied,
-                !['P0001', '22023', 'PGRST202'].contains(code),
-              );
-              expect(error.conflict, code == 'P0001');
-              expect(error.uncertain, isFalse);
-              expect(error.message, isNot(contains('private-token')));
-            }
-            expect(calls, 1);
+            final receipt = await transition(
+              opened.repo,
+              requestId: _requestId,
+              expectedVersion: 4,
+            );
+            expect(receipt.requestId, _requestId);
+            expect(receipt.status, RepairStatus.inProgress);
+            expect(receipt.version, 5);
+            expect(receipt.resultId, isNull);
+            expect(receipt.replayed, isFalse);
+            final request = requests.single;
+            expect(request.method, 'POST');
+            expect(
+              request.url.path,
+              confirmTransfer
+                  ? '/rest/v1/rpc/technician_confirm_transfer'
+                  : '/rest/v1/rpc/technician_continue_job',
+            );
+            expect(jsonDecode(request.body), {
+              'p_request_id': _requestId,
+              'p_expected_version': 4,
+            });
+            _authenticated(request, opened.token);
           },
         );
-      }
 
-      final ambiguousReceipts = <String, Object?>{
-        'null response': null,
-        'array response': [_startReceipt()],
-        'wrong request': {..._startReceipt(), 'request_id': _otherId},
-        'invalid request UUID': {..._startReceipt(), 'request_id': 'bad'},
-        'unchanged version': {..._startReceipt(), 'version': 4},
-        'skipped version': {..._startReceipt(), 'version': 6},
-        'string version': {..._startReceipt(), 'version': '5'},
-        'wrong status': {..._startReceipt(), 'status': 'awaiting_confirmation'},
-        'missing status': {..._startReceipt()}..remove('status'),
-        'unexpected result ID': {..._startReceipt(), 'result_id': _otherId},
-        'null result ID': {..._startReceipt(), 'result_id': null},
-        'replayed result': {..._startReceipt(), 'replayed': true},
-        'non-replayed result field': {..._startReceipt(), 'replayed': false},
-      };
-      for (final entry in ambiguousReceipts.entries) {
-        test('${entry.key} is uncertain and never retried', () async {
+        test('invalid UUID/version inputs make no network calls', () async {
           var calls = 0;
           final opened = await open((_) async {
             calls++;
-            return _json(entry.value);
+            return _json({});
           });
-          await expectLater(
-            opened.repo.continueJob(requestId: _requestId, expectedVersion: 4),
-            throwsA(
-              isA<TechnicianWorkflowFailure>()
-                  .having((e) => e.uncertain, 'uncertain', true)
-                  .having((e) => e.conflict, 'conflict', false),
-            ),
-          );
-          expect(calls, 1);
+          for (final input in [
+            (id: '', version: 4),
+            (id: 'bad', version: 4),
+            (id: ' $_requestId', version: 4),
+            (id: _requestId, version: 0),
+            (id: _requestId, version: -1),
+          ]) {
+            await expectLater(
+              transition(
+                opened.repo,
+                requestId: input.id,
+                expectedVersion: input.version,
+              ),
+              throwsA(
+                isA<TechnicianWorkflowFailure>()
+                    .having((e) => e.accessDenied, 'accessDenied', false)
+                    .having((e) => e.uncertain, 'uncertain', false),
+              ),
+            );
+          }
+          expect(calls, 0);
         });
-      }
 
-      test('lost RPC response is uncertain with no automatic retry', () async {
-        var calls = 0;
-        final opened = await open((_) async {
-          calls++;
-          throw http.ClientException('private transport details');
-        });
-        await expectLater(
-          opened.repo.continueJob(requestId: _requestId, expectedVersion: 4),
-          throwsA(
-            isA<TechnicianWorkflowFailure>()
-                .having((e) => e.uncertain, 'uncertain', true)
-                .having(
-                  (e) => e.message,
-                  'message',
-                  isNot(contains('private')),
-                ),
-          ),
-        );
-        expect(calls, 1);
-      });
-
-      for (final sessionChange in ['account switch', 'session expiration']) {
-        for (final outcome in ['success', 'backend error', 'transport error']) {
+        for (final code in [
+          '28000',
+          '42501',
+          'P0002',
+          'PGRST301',
+          'PGRST302',
+          'PGRST303',
+          '401',
+          '403',
+          'P0001',
+          '22023',
+          'PGRST202',
+        ]) {
           test(
-            '$sessionChange during $outcome discards response as access denied',
+            'maps $code without retrying or disclosing backend details',
             () async {
-              final started = Completer<void>();
-              final response = Completer<http.Response>();
               var calls = 0;
               final opened = await open((_) async {
                 calls++;
-                started.complete();
-                return response.future;
+                return _error(code, 'private-token-storage-path');
               });
-              final checked = expectLater(
-                opened.repo.continueJob(
+              try {
+                await transition(
+                  opened.repo,
                   requestId: _requestId,
                   expectedVersion: 4,
-                ),
-                throwsA(_denied.having((e) => e.uncertain, 'uncertain', false)),
-              );
-              await started.future;
-              final uid = sessionChange == 'account switch'
-                  ? _otherId
-                  : _technicianId;
-              await opened.client.auth.setInitialSession(
-                _session(
-                  _jwt(
-                    uid: uid,
-                    expired: sessionChange == 'session expiration',
-                  ),
-                  uid: uid,
-                ),
-              );
-              if (outcome == 'transport error') {
-                response.completeError(
-                  http.ClientException('private transport'),
                 );
-              } else {
-                response.complete(
-                  outcome == 'success'
-                      ? _json(_startReceipt())
-                      : _error('P0001', 'private backend'),
+                fail('Expected failure');
+              } on TechnicianWorkflowFailure catch (error) {
+                expect(
+                  error.accessDenied,
+                  !['P0001', '22023', 'PGRST202'].contains(code),
                 );
+                expect(error.conflict, code == 'P0001');
+                expect(error.uncertain, isFalse);
+                expect(error.message, isNot(contains('private-token')));
               }
-              await checked;
               expect(calls, 1);
             },
           );
         }
-      }
-    });
+
+        final ambiguousReceipts = <String, Object?>{
+          'null response': null,
+          'array response': [_startReceipt()],
+          'wrong request': {..._startReceipt(), 'request_id': _otherId},
+          'invalid request UUID': {..._startReceipt(), 'request_id': 'bad'},
+          'unchanged version': {..._startReceipt(), 'version': 4},
+          'skipped version': {..._startReceipt(), 'version': 6},
+          'string version': {..._startReceipt(), 'version': '5'},
+          'wrong status': {
+            ..._startReceipt(),
+            'status': 'awaiting_confirmation',
+          },
+          'missing status': {..._startReceipt()}..remove('status'),
+          'unexpected result ID': {..._startReceipt(), 'result_id': _otherId},
+          'null result ID': {..._startReceipt(), 'result_id': null},
+          'replayed result': {..._startReceipt(), 'replayed': true},
+          'non-replayed result field': {..._startReceipt(), 'replayed': false},
+        };
+        for (final entry in ambiguousReceipts.entries) {
+          test('${entry.key} is uncertain and never retried', () async {
+            var calls = 0;
+            final opened = await open((_) async {
+              calls++;
+              return _json(entry.value);
+            });
+            await expectLater(
+              transition(
+                opened.repo,
+                requestId: _requestId,
+                expectedVersion: 4,
+              ),
+              throwsA(
+                isA<TechnicianWorkflowFailure>()
+                    .having((e) => e.uncertain, 'uncertain', true)
+                    .having((e) => e.conflict, 'conflict', false),
+              ),
+            );
+            expect(calls, 1);
+          });
+        }
+
+        test(
+          'lost RPC response is uncertain with no automatic retry',
+          () async {
+            var calls = 0;
+            final opened = await open((_) async {
+              calls++;
+              throw http.ClientException('private transport details');
+            });
+            await expectLater(
+              transition(
+                opened.repo,
+                requestId: _requestId,
+                expectedVersion: 4,
+              ),
+              throwsA(
+                isA<TechnicianWorkflowFailure>()
+                    .having((e) => e.uncertain, 'uncertain', true)
+                    .having(
+                      (e) => e.message,
+                      'message',
+                      isNot(contains('private')),
+                    ),
+              ),
+            );
+            expect(calls, 1);
+          },
+        );
+
+        for (final sessionChange in ['account switch', 'session expiration']) {
+          for (final outcome in [
+            'success',
+            'backend error',
+            'transport error',
+          ]) {
+            test(
+              '$sessionChange during $outcome discards response as access denied',
+              () async {
+                final started = Completer<void>();
+                final response = Completer<http.Response>();
+                var calls = 0;
+                final opened = await open((_) async {
+                  calls++;
+                  started.complete();
+                  return response.future;
+                });
+                final checked = expectLater(
+                  transition(
+                    opened.repo,
+                    requestId: _requestId,
+                    expectedVersion: 4,
+                  ),
+                  throwsA(
+                    _denied.having((e) => e.uncertain, 'uncertain', false),
+                  ),
+                );
+                await started.future;
+                final uid = sessionChange == 'account switch'
+                    ? _otherId
+                    : _technicianId;
+                await opened.client.auth.setInitialSession(
+                  _session(
+                    _jwt(
+                      uid: uid,
+                      expired: sessionChange == 'session expiration',
+                    ),
+                    uid: uid,
+                  ),
+                );
+                if (outcome == 'transport error') {
+                  response.completeError(
+                    http.ClientException('private transport'),
+                  );
+                } else {
+                  response.complete(
+                    outcome == 'success'
+                        ? _json(_startReceipt())
+                        : _error('P0001', 'private backend'),
+                  );
+                }
+                await checked;
+                expect(calls, 1);
+              },
+            );
+          }
+        }
+      });
+    }
 
     for (final code in [
       '28000',
