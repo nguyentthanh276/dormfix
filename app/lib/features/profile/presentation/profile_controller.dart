@@ -6,10 +6,7 @@ import '../data/profile_repository.dart';
 import '../models/phone_rules.dart';
 
 class ProfileController extends ChangeNotifier {
-  ProfileController({
-    required this.authController,
-    this.repository,
-  });
+  ProfileController({required this.authController, this.repository});
 
   final AuthController authController;
   final ProfileRepository? repository;
@@ -69,7 +66,8 @@ class ProfileController extends ChangeNotifier {
       }
       return false;
     } catch (_) {
-      _error = 'Không thể cập nhật số điện thoại do lỗi kết nối. Vui lòng thử lại.';
+      _error =
+          'Không thể cập nhật số điện thoại do lỗi kết nối. Vui lòng thử lại.';
       return false;
     } finally {
       _isLoading = false;
