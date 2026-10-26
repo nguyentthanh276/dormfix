@@ -25,23 +25,29 @@ class TechnicianWorkflowFailure implements Exception {
 class TechnicianWorkflowCapabilities {
   const TechnicianWorkflowCapabilities({
     this.canStart = false,
+    this.canContinue = false,
     this.canSubmitResult = false,
     this.blockedReason,
   });
 
   factory TechnicianWorkflowCapabilities.fromJson(Map<String, dynamic> json) {
     final start = json['can_start'];
+    final canContinue = json.containsKey('can_continue')
+        ? json['can_continue']
+        : false;
     final submit = json['can_submit_result'];
     final reason = json['blocked_reason'];
     if (start is! bool ||
+        canContinue is! bool ||
         submit is! bool ||
-        (start && submit) ||
+        ((start ? 1 : 0) + (canContinue ? 1 : 0) + (submit ? 1 : 0) > 1) ||
         !json.containsKey('blocked_reason') ||
         (reason != null && !_reasons.contains(reason))) {
       throw const FormatException('Invalid technician workflow capabilities.');
     }
     return TechnicianWorkflowCapabilities(
       canStart: start,
+      canContinue: canContinue,
       canSubmitResult: submit,
       blockedReason: reason as String?,
     );
@@ -56,6 +62,7 @@ class TechnicianWorkflowCapabilities {
   };
 
   final bool canStart;
+  final bool canContinue;
   final bool canSubmitResult;
   final String? blockedReason;
 }
