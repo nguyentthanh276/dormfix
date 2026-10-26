@@ -160,8 +160,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   children: [
                     if (profile.identityCode != null)
                       InfoRow(identityLabel, profile.identityCode!),
-                    if (profile.email != null)
-                      InfoRow('Email', profile.email!),
+                    if (profile.email != null) InfoRow('Email', profile.email!),
                     if (isStudent) InfoRow('Phòng', roomCode),
                     InfoRow(
                       'Số điện thoại',

@@ -125,5 +125,6 @@ class ProfileFailure implements Exception {
   final bool signOutRequired;
 
   @override
-  String toString() => 'ProfileFailure($message, signOutRequired: $signOutRequired)';
+  String toString() =>
+      'ProfileFailure($message, signOutRequired: $signOutRequired)';
 }
