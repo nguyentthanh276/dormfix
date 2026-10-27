@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../models/admin_room.dart';
 
 class AdminRoomRepository {
@@ -50,7 +51,9 @@ class AdminRoomRepository {
           .toList();
     } on PostgrestException catch (e) {
       if (e.code == '42501') {
-        debugPrint('Chưa có quyền 42501 trên Supabase: Dùng dữ liệu phòng mẫu dự phòng.');
+        debugPrint(
+          'Chưa có quyền 42501 trên Supabase: Dùng dữ liệu phòng mẫu dự phòng.',
+        );
         return List.from(_fallbackRooms);
       }
       rethrow;
@@ -114,11 +117,14 @@ class AdminRoomRepository {
     }
 
     try {
-      await _client.from('rooms').update({
-        'code': trimmedCode,
-        'building': trimmedBuilding,
-        'updated_at': DateTime.now().toIso8601String(),
-      }).eq('id', roomId);
+      await _client
+          .from('rooms')
+          .update({
+            'code': trimmedCode,
+            'building': trimmedBuilding,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', roomId);
     } on PostgrestException catch (e) {
       if (e.code == '23505') {
         throw Exception('Mã phòng "$trimmedCode" đã tồn tại.');
@@ -151,10 +157,13 @@ class AdminRoomRepository {
     }
 
     try {
-      await _client.from('rooms').update({
-        'is_active': false,
-        'updated_at': DateTime.now().toIso8601String(),
-      }).eq('id', room.id);
+      await _client
+          .from('rooms')
+          .update({
+            'is_active': false,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', room.id);
     } on PostgrestException catch (e) {
       if (e.code == '42501') {
         final index = _fallbackRooms.indexWhere((r) => r.id == room.id);
