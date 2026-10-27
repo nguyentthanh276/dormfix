@@ -28,6 +28,8 @@ class _StudentHomePageState extends State<StudentHomePage> {
   // Đổi MockRequestRepository thành bản Supabase chỉ cần sửa đúng một dòng này.
   late final RequestRepository _repository = MockRequestRepository(
     roomCode: widget.controller.profile?.room?.code,
+    studentId: widget.controller.profile!.id,
+    studentName: widget.controller.profile?.fullName ?? 'Sinh viên',
   );
 
   @override
@@ -40,7 +42,7 @@ class _StudentHomePageState extends State<StudentHomePage> {
     // Student detail routes belong to this authenticated Home. Removing the
     // Home on logout/expiry also removes every detail above its tab shell.
     return NavigatorPopHandler<Object?>(
-      onPopWithResult: (result) => _navigatorKey.currentState!.pop(result),
+      onPopWithResult: (result) => _navigatorKey.currentState?.maybePop(result),
       child: Navigator(
         key: _navigatorKey,
         pages: [

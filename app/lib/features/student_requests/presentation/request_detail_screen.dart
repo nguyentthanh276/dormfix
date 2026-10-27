@@ -40,6 +40,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
   }
 
   Future<void> _load() async {
+    if (!mounted) return;
     setState(() {
       _loading = true;
       _errorText = null;
@@ -59,18 +60,20 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
   }
 
   Future<void> _navigateToEdit() async {
-    if (_detail == null) return;
+    final detail = _detail;
+    if (detail == null ||
+        _loading ||
+        detail.request.status != RepairStatus.pending) {
+      return;
+    }
     final updated = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
-        builder: (_) => EditRequestScreen(
-          repository: widget.repository,
-          detail: _detail!,
-          onUpdated: _load,
-        ),
+        builder: (_) =>
+            EditRequestScreen(repository: widget.repository, detail: detail),
       ),
     );
-    if (updated == true) {
-      _load();
+    if (mounted && updated == true) {
+      await _load();
     }
   }
 
@@ -176,7 +179,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
             IconButton(
               icon: const Icon(Icons.edit_outlined),
               tooltip: 'Chỉnh sửa yêu cầu',
-              onPressed: _navigateToEdit,
+              onPressed: _loading ? null : _navigateToEdit,
             ),
           if (canCancel)
             IconButton(
