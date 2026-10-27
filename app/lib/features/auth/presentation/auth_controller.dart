@@ -238,6 +238,11 @@ class AuthController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void updateProfileLocally(UserProfile updatedProfile) {
+    _profile = updatedProfile;
+    notifyListeners();
+  }
+
   void _acceptProfile(UserProfile profile) {
     if (profile.status == 'locked' || profile.status == 'revoked') {
       throw AuthFailure(

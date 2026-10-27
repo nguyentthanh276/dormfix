@@ -6,9 +6,13 @@ class HistoryEntry {
     required this.status,
     required this.note,
     required this.createdAt,
+    this.actorId,
+    this.actorName,
   });
 
   final RepairStatus status;
   final String note;
   final DateTime createdAt;
+  final String? actorId;
+  final String? actorName;
 }

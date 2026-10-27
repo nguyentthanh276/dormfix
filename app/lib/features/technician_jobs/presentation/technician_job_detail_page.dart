@@ -4,22 +4,31 @@ import 'package:flutter/material.dart';
 
 import '../../../core/models/repair_status.dart';
 import '../data/technician_jobs_repository.dart';
+import '../data/technician_workflow_repository.dart';
 import '../models/technician_job.dart';
+import '../models/technician_workflow.dart';
 import 'technician_job_photo.dart';
 import 'technician_job_widgets.dart';
+import 'technician_result_form.dart';
 
-/// Read-only job view. It belongs to the authenticated Home's local page state.
+/// Belongs to the authenticated Home's local page state, including its draft.
 class TechnicianJobDetailPage extends StatefulWidget {
   const TechnicianJobDetailPage({
     super.key,
     required this.requestId,
     required this.repository,
     required this.onAccessDenied,
+    this.workflowRepository,
+    this.onJobChanged,
+    this.pickResultImages,
   });
 
   final String requestId;
   final TechnicianJobsRepository repository;
   final VoidCallback onAccessDenied;
+  final TechnicianWorkflowRepository? workflowRepository;
+  final VoidCallback? onJobChanged;
+  final TechnicianResultImagePicker? pickResultImages;
 
   @override
   State<TechnicianJobDetailPage> createState() =>
@@ -35,6 +44,15 @@ class _TechnicianJobDetailPageState extends State<TechnicianJobDetailPage>
   bool _refreshQueued = false;
   bool _foreground = true;
   bool _denied = false;
+  bool _writing = false;
+  bool _showResultForm = false;
+  String? _actionMessage;
+  TechnicianResultSubmission? _uncertainSubmission;
+  final _scrollController = ScrollController();
+  bool _returnToTop = false;
+  bool _pickingImages = false;
+  bool _preservePickerDraft = false;
+  bool _resumeChecking = false;
   int _generation = 0;
   int _photoRevision = 0;
   Timer? _refreshTimer;
@@ -61,7 +79,11 @@ class _TechnicianJobDetailPageState extends State<TechnicianJobDetailPage>
       _foreground = true;
       _generation++;
       setState(() {
-        _detail = null;
+        if (!_preservePickerDraft) {
+          _detail = null;
+          _clearDraft();
+        }
+        _resumeChecking = _preservePickerDraft;
         _photoRevision++;
       });
       _startTimer();
@@ -72,7 +94,14 @@ class _TechnicianJobDetailPageState extends State<TechnicianJobDetailPage>
       _generation++;
       _refreshQueued = false;
       setState(() {
-        _detail = null;
+        // The system gallery backgrounds the app. Keep its draft mounted but
+        // hidden; the resumed server check decides whether it can reappear.
+        _preservePickerDraft = _preservePickerDraft || _pickingImages;
+        _resumeChecking = _preservePickerDraft;
+        if (!_preservePickerDraft) {
+          _detail = null;
+          _clearDraft();
+        }
         _photoRevision++;
       });
     }
@@ -82,11 +111,16 @@ class _TechnicianJobDetailPageState extends State<TechnicianJobDetailPage>
   void didUpdateWidget(covariant TechnicianJobDetailPage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.requestId != widget.requestId ||
-        oldWidget.repository != widget.repository) {
+        oldWidget.repository != widget.repository ||
+        oldWidget.workflowRepository != widget.workflowRepository) {
       _generation++;
       _detail = null;
       _error = null;
       _denied = false;
+      _clearDraft();
+      _actionMessage = null;
+      _resumeChecking = false;
+      _preservePickerDraft = false;
       _photoRevision++;
       unawaited(_load());
     }
@@ -94,7 +128,7 @@ class _TechnicianJobDetailPageState extends State<TechnicianJobDetailPage>
 
   Future<void> _load() async {
     if (!_foreground) return;
-    if (_inFlight) {
+    if (_inFlight || _writing) {
       _refreshQueued = true;
       return;
     }
@@ -108,26 +142,63 @@ class _TechnicianJobDetailPageState extends State<TechnicianJobDetailPage>
       final detail = await widget.repository.fetchJobDetail(widget.requestId);
       if (!mounted || generation != _generation) return;
       setState(() {
+        final previous = _detail;
+        final uncertain = _uncertainSubmission;
+        if (uncertain != null &&
+            detail.results.any((result) => result.id == uncertain.resultId)) {
+          _clearDraft();
+          _actionMessage = 'Đã gửi kết quả. Đang chờ sinh viên xác nhận.';
+          _returnToTop = true;
+          widget.onJobChanged?.call();
+        } else if (_showResultForm &&
+            (!_canSubmit(detail) ||
+                (previous != null &&
+                    detail.job.version != previous.job.version))) {
+          _clearDraft();
+          _actionMessage =
+              'Công việc đã thay đổi. Vui lòng kiểm tra trạng thái mới.';
+          _returnToTop = true;
+        }
         _detail = detail;
         _denied = false;
+        _resumeChecking = false;
+        _preservePickerDraft = false;
       });
+      if (_returnToTop) {
+        _returnToTop = false;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _scrollController.hasClients) {
+            _scrollController.jumpTo(0);
+          }
+        });
+      }
     } on TechnicianJobsFailure catch (failure) {
       if (!mounted || generation != _generation) return;
       if (failure.accessDenied) {
         _denyAccess();
       } else {
         setState(() {
-          _detail = null;
-          _photoRevision++;
+          if (_uncertainSubmission == null) {
+            _detail = null;
+            _clearDraft();
+            _photoRevision++;
+          }
           _error = failure.message;
+          _resumeChecking = false;
+          _preservePickerDraft = false;
         });
       }
     } catch (_) {
       if (!mounted || generation != _generation) return;
       setState(() {
-        _detail = null;
-        _photoRevision++;
+        if (_uncertainSubmission == null) {
+          _detail = null;
+          _clearDraft();
+          _photoRevision++;
+        }
         _error = 'Không tải được chi tiết công việc. Vui lòng thử lại.';
+        _resumeChecking = false;
+        _preservePickerDraft = false;
       });
     } finally {
       _inFlight = false;
@@ -148,9 +219,13 @@ class _TechnicianJobDetailPageState extends State<TechnicianJobDetailPage>
     _generation++;
     setState(() {
       _detail = null;
+      _clearDraft();
+      _actionMessage = null;
       _photoRevision++;
       _loading = false;
       _denied = true;
+      _resumeChecking = false;
+      _preservePickerDraft = false;
       _error =
           'Bạn không còn quyền xem công việc này. '
           'Công việc có thể đã được chuyển cho kỹ thuật viên khác.';
@@ -158,17 +233,167 @@ class _TechnicianJobDetailPageState extends State<TechnicianJobDetailPage>
     widget.onAccessDenied();
   }
 
+  bool _canStart(TechnicianJobDetail detail) =>
+      widget.workflowRepository != null &&
+      detail.job.status == RepairStatus.assigned &&
+      detail.workflow.canStart;
+
+  bool _canContinue(TechnicianJobDetail detail) =>
+      widget.workflowRepository != null &&
+      detail.job.status == RepairStatus.awaitingRework &&
+      detail.workflow.canContinue;
+
+  bool _canConfirmTransfer(TechnicianJobDetail detail) =>
+      widget.workflowRepository != null &&
+      detail.job.status == RepairStatus.inProgress &&
+      detail.workflow.canConfirmTransfer;
+
+  bool _canSubmit(TechnicianJobDetail detail) =>
+      widget.workflowRepository != null &&
+      detail.job.status == RepairStatus.inProgress &&
+      detail.workflow.canSubmitResult;
+
+  void _clearDraft() {
+    _showResultForm = false;
+    _uncertainSubmission = null;
+    _pickingImages = false;
+  }
+
+  Future<void> _startJob() async {
+    final detail = _detail;
+    if (detail == null || !_canStart(detail)) return;
+    await _write(
+      () => widget.workflowRepository!.startJob(
+        requestId: detail.job.id,
+        expectedVersion: detail.job.version,
+      ),
+    );
+  }
+
+  Future<void> _continueJob() async {
+    final detail = _detail;
+    if (detail == null || !_canContinue(detail)) return;
+    await _write(
+      () => widget.workflowRepository!.continueJob(
+        requestId: detail.job.id,
+        expectedVersion: detail.job.version,
+      ),
+      successMessage: 'Đã tiếp tục xử lý công việc.',
+    );
+  }
+
+  Future<void> _confirmTransfer() async {
+    final detail = _detail;
+    if (detail == null || !_canConfirmTransfer(detail)) return;
+    await _write(
+      () => widget.workflowRepository!.confirmTransfer(
+        requestId: detail.job.id,
+        expectedVersion: detail.job.version,
+      ),
+      successMessage: 'Đã xác nhận tiếp tục công việc.',
+    );
+  }
+
+  Future<void> _submitResult(TechnicianResultSubmission submission) async {
+    final detail = _detail;
+    if (detail == null ||
+        !_canSubmit(detail) ||
+        detail.job.id != submission.requestId ||
+        detail.job.version != submission.expectedVersion) {
+      return;
+    }
+    await _write(
+      () => widget.workflowRepository!.submitResult(submission),
+      submission: submission,
+    );
+  }
+
+  Future<void> _write(
+    Future<TechnicianWriteReceipt> Function() operation, {
+    TechnicianResultSubmission? submission,
+    String successMessage = 'Đã bắt đầu xử lý công việc.',
+  }) async {
+    if (_writing || _inFlight || !_foreground || _denied) return;
+    // Home can remain visible after this detail is closed during the write.
+    // Capture its session-scoped callback before awaiting or being disposed.
+    final onWriteFinished = widget.onJobChanged;
+    final generation = ++_generation;
+    setState(() {
+      _writing = true;
+      _actionMessage = null;
+    });
+    try {
+      await operation();
+      if (!mounted || generation != _generation) return;
+      setState(() {
+        _clearDraft();
+        _detail = null;
+        _photoRevision++;
+        _returnToTop = true;
+        _actionMessage = submission == null
+            ? successMessage
+            : 'Đã gửi kết quả. Đang chờ sinh viên xác nhận.';
+      });
+    } on TechnicianWorkflowFailure catch (failure) {
+      if (!mounted || generation != _generation) return;
+      if (failure.accessDenied) {
+        _denyAccess();
+      } else {
+        setState(() {
+          _actionMessage = failure.message;
+          if (failure.conflict) {
+            _clearDraft();
+            _detail = null;
+            _photoRevision++;
+            _returnToTop = true;
+          } else if (failure.uncertain && submission != null) {
+            _uncertainSubmission = submission;
+          }
+        });
+      }
+    } catch (_) {
+      if (!mounted || generation != _generation) return;
+      setState(() {
+        _actionMessage = 'Chưa xác nhận được thao tác. Vui lòng kiểm tra trạng thái và thử lại.';
+        if (submission != null) _uncertainSubmission = submission;
+      });
+    } finally {
+      onWriteFinished?.call();
+      if (mounted) {
+        setState(() => _writing = false);
+        // Revalidate after every outcome, including a lost network response.
+        _refreshQueued = false;
+        if (_foreground && !_denied) await _load();
+      }
+    }
+  }
+
   @override
   void dispose() {
     _generation++;
     _detail = null;
+    _clearDraft();
     _refreshTimer?.cancel();
+    _scrollController.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        Offstage(
+          offstage: !_foreground || _resumeChecking,
+          child: _buildDetail(context),
+        ),
+        if (_foreground && _resumeChecking)
+          const Center(child: CircularProgressIndicator()),
+      ],
+    );
+  }
+
+  Widget _buildDetail(BuildContext context) {
     final detail = _detail;
     if (_loading && detail == null) {
       return const Center(child: CircularProgressIndicator());
@@ -195,6 +420,7 @@ class _TechnicianJobDetailPageState extends State<TechnicianJobDetailPage>
               ),
             )
           : ListView(
+              controller: _scrollController,
               key: const Key('technician-job-detail'),
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.all(16),
@@ -220,8 +446,121 @@ class _TechnicianJobDetailPageState extends State<TechnicianJobDetailPage>
                       ? 'Công việc đã hoàn tất. Thông tin chỉ để xem.'
                       : detail.job.status == RepairStatus.cancelled
                       ? 'Công việc đã hủy. Thông tin chỉ để xem.'
+                      : _canStart(detail) ||
+                            _canContinue(detail) ||
+                            _canConfirmTransfer(detail) ||
+                            _canSubmit(detail)
+                      ? 'Chi tiết công việc'
                       : 'Chi tiết công việc · Chỉ xem',
                 ),
+                if (_actionMessage != null)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Text(
+                      _actionMessage!,
+                      key: const Key('technician-action-message'),
+                    ),
+                  ),
+                if (_error != null)
+                  Text(
+                    _error!,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                if (_canStart(detail))
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: FilledButton.icon(
+                      key: const Key('technician-start-job'),
+                      onPressed: _loading || _writing ? null : _startJob,
+                      icon: _writing
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.play_arrow),
+                      label: Text(
+                        _writing ? 'Đang bắt đầu...' : 'Bắt đầu xử lý',
+                      ),
+                    ),
+                  ),
+                if (_canContinue(detail))
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: FilledButton.icon(
+                      key: const Key('technician-continue-job'),
+                      onPressed: _loading || _writing ? null : _continueJob,
+                      icon: _writing
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.play_arrow),
+                      label: Text(
+                        _writing ? 'Đang tiếp tục...' : 'Tiếp tục xử lý',
+                      ),
+                    ),
+                  ),
+                if (_canConfirmTransfer(detail))
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: FilledButton.icon(
+                      key: const Key('technician-confirm-transfer'),
+                      onPressed: _loading || _writing ? null : _confirmTransfer,
+                      icon: _writing
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.task_alt),
+                      label: Text(
+                        _writing ? 'Đang xác nhận...' : 'Xác nhận tiếp tục',
+                      ),
+                    ),
+                  ),
+                if (_canSubmit(detail) && !_showResultForm)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: FilledButton.icon(
+                      key: const Key('technician-open-result-form'),
+                      onPressed: _loading || _writing
+                          ? null
+                          : () {
+                              setState(() {
+                                _showResultForm = true;
+                                _actionMessage = null;
+                              });
+                            },
+                      icon: const Icon(Icons.edit_note),
+                      label: const Text('Nhập kết quả sửa chữa'),
+                    ),
+                  ),
+                if (_showResultForm && _canSubmit(detail))
+                  TechnicianResultForm(
+                    key: ValueKey(
+                      'result-form-${detail.job.id}-${detail.job.version}',
+                    ),
+                    job: detail.job,
+                    busy: _writing || _loading,
+                    retryOnly: _uncertainSubmission != null,
+                    pickImages: widget.pickResultImages,
+                    onPickingChanged: (picking) => _pickingImages = picking,
+                    onSubmit: _submitResult,
+                    onCancel: () => setState(_clearDraft),
+                  ),
+                if (widget.workflowRepository != null &&
+                    !_canStart(detail) &&
+                    !_canContinue(detail) &&
+                    !_canConfirmTransfer(detail) &&
+                    !_canSubmit(detail))
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: Text(_blockedMessage(detail.workflow.blockedReason)),
+                  ),
                 _section('Thông tin yêu cầu', [
                   _field('Phòng', detail.job.roomCode),
                   _field('Tòa nhà', detail.job.building),
@@ -401,6 +740,17 @@ class _TechnicianJobDetailPageState extends State<TechnicianJobDetailPage>
   }
 }
 
+String _blockedMessage(String? reason) => switch (reason) {
+  'START_REQUIRED' => 'Cần bắt đầu xử lý trước khi gửi kết quả.',
+  'CONTINUE_REQUIRED' =>
+    'Cần xác nhận tiếp tục xử lý trước khi gửi kết quả mới.',
+  'TRANSFER_CONFIRMATION_REQUIRED' =>
+    'Cần xác nhận công việc được chuyển đến trước khi gửi kết quả.',
+  'ASSIGNMENT_NOT_READY' =>
+    'Phân công chưa sẵn sàng để xử lý. Vui lòng tải lại hoặc liên hệ Admin.',
+  _ => 'Hiện tại công việc chỉ có thể xem.',
+};
+
 String _statusLabel(String? value) {
   if (value == null) return '—';
   for (final status in RepairStatus.values) {
@@ -413,6 +763,8 @@ String _actionLabel(String action) => switch (action) {
   'created' || 'create' => 'Tạo yêu cầu',
   'assigned' || 'assign' => 'Phân công kỹ thuật viên',
   'started' || 'start' || 'in_progress' => 'Bắt đầu xử lý',
+  'continued' => 'Tiếp tục xử lý',
+  'transfer_confirmed' => 'Xác nhận tiếp tục',
   'repair_reported' ||
   'result_submitted' ||
   'reported' => 'Báo cáo kết quả sửa chữa',

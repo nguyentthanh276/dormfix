@@ -9,17 +9,23 @@ import '../features/auth/presentation/change_password_page.dart';
 import '../features/auth/presentation/login_page.dart';
 import '../features/student_requests/presentation/student_home_page.dart';
 import '../features/technician_jobs/data/technician_jobs_repository.dart';
+import '../features/technician_jobs/data/technician_workflow_repository.dart';
 import '../features/technician_jobs/presentation/technician_home_page.dart';
+import '../features/profile/data/profile_repository.dart';
 
 class StartupPage extends StatefulWidget {
   const StartupPage({
     super.key,
     required this.controller,
     this.technicianJobsRepository,
+    this.technicianWorkflowRepository,
+    this.profileRepository,
   });
 
   final AuthController controller;
   final TechnicianJobsRepository? technicianJobsRepository;
+  final TechnicianWorkflowRepository? technicianWorkflowRepository;
+  final ProfileRepository? profileRepository;
 
   @override
   State<StartupPage> createState() => _StartupPageState();
@@ -42,11 +48,17 @@ class _StartupPageState extends State<StartupPage> {
       AuthViewState.signedOut => LoginPage(controller: widget.controller),
       AuthViewState.authenticated => switch (widget.controller.profile?.role) {
         AppRole.admin => AdminHomePage(controller: widget.controller),
-        AppRole.student => StudentHomePage(controller: widget.controller),
+        AppRole.student => StudentHomePage(
+          key: ValueKey('student-${widget.controller.profile?.id}'),
+          controller: widget.controller,
+          profileRepository: widget.profileRepository,
+        ),
         AppRole.technician => TechnicianHomePage(
           key: ValueKey('technician-${widget.controller.profile?.id}'),
           controller: widget.controller,
           repository: widget.technicianJobsRepository,
+          workflowRepository: widget.technicianWorkflowRepository,
+          profileRepository: widget.profileRepository,
         ),
         null => _InvalidProfilePage(controller: widget.controller),
       },
