@@ -17,6 +17,26 @@ class MockRequestRepository implements RequestRepository {
     this.delay = const Duration(milliseconds: 300),
   }) : roomCode = roomCode ?? 'DEMO-A101';
 
+  /// Khởi tạo repo có sẵn 1 yêu cầu pending ('mock-3') phục vụ test và demo DF-011.
+  factory MockRequestRepository.withSamplePending({
+    String? roomCode,
+    Duration delay = Duration.zero,
+  }) {
+    final repo = MockRequestRepository(roomCode: roomCode, delay: delay);
+    repo._requests.insert(
+      0,
+      repo._sample(
+        3,
+        'Cửa sổ bị kẹt chốt',
+        'Nội thất',
+        RepairStatus.pending,
+        1,
+      ),
+    );
+    repo._customDescriptions['mock-3'] = 'Chốt cửa bị gỉ sét không đóng được';
+    return repo;
+  }
+
   final String roomCode;
   final Duration delay;
 
@@ -52,14 +72,14 @@ class MockRequestRepository implements RequestRepository {
 
   @override
   Future<List<RepairRequest>> fetchMyRequests() async {
-    await Future.delayed(delay);
+    if (delay > Duration.zero) await Future.delayed(delay);
     if (failFetch) throw Exception('Mock: lỗi tải danh sách');
     return List.of(_requests);
   }
 
   @override
   Future<RequestDetail> fetchRequestDetail(String requestId) async {
-    await Future.delayed(delay);
+    if (delay > Duration.zero) await Future.delayed(delay);
     if (failFetch) throw Exception('Mock: lỗi tải chi tiết');
     final r = _requests.firstWhere((e) => e.id == requestId);
     final at = r.createdAt;
@@ -145,13 +165,13 @@ class MockRequestRepository implements RequestRepository {
 
   @override
   Future<List<IncidentCategory>> fetchCategories() async {
-    await Future.delayed(delay);
+    if (delay > Duration.zero) await Future.delayed(delay);
     return _categories;
   }
 
   @override
   Future<RepairRequest> createRequest(NewRepairRequest request) async {
-    await Future.delayed(delay);
+    if (delay > Duration.zero) await Future.delayed(delay);
     if (failCreate) throw Exception('Mock: lỗi tạo yêu cầu');
     final category = _categories.firstWhere((c) => c.id == request.categoryId);
     final created = RepairRequest(
@@ -172,7 +192,7 @@ class MockRequestRepository implements RequestRepository {
 
   @override
   Future<void> updateRequest(EditRepairRequest request) async {
-    await Future.delayed(delay);
+    if (delay > Duration.zero) await Future.delayed(delay);
     if (failUpdate) throw Exception('Mock: lỗi cập nhật yêu cầu');
 
     final index = _requests.indexWhere((e) => e.id == request.requestId);
