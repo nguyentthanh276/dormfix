@@ -33,6 +33,7 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
   }
 
   Future<void> _load() async {
+    if (!mounted) return;
     setState(() {
       _loading = true;
       _errorText = null;
@@ -53,6 +54,18 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  Future<void> _openDetail(String requestId) async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => RequestDetailScreen(
+          repository: widget.repository,
+          requestId: requestId,
+        ),
+      ),
+    );
+    if (mounted) await _load();
   }
 
   @override
@@ -109,15 +122,7 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
               itemBuilder: (context, index) => RequestCard(
                 request: list[index],
                 // Truyền id sang màn chi tiết; màn đó tự tải dữ liệu theo id.
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => RequestDetailScreen(
-                      repository: widget.repository,
-                      requestId: list[index].id,
-                    ),
-                  ),
-                ),
+                onTap: () => _openDetail(list[index].id),
               ),
             ),
           ),

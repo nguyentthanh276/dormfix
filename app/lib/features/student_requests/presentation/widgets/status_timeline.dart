@@ -64,6 +64,8 @@ class StatusTimeline extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 2),
+                        if (entries[i].actorName case final actorName?)
+                          Text(actorName, style: const TextStyle(fontSize: 12)),
                         Text(
                           entries[i].note,
                           style: const TextStyle(fontSize: 13),
