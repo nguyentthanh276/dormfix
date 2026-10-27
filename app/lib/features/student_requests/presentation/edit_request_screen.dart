@@ -15,13 +15,13 @@ import 'widgets/category_tile.dart';
 class EditRequestScreen extends StatefulWidget {
   final RequestRepository repository;
   final RequestDetail detail;
-  final VoidCallback onUpdated;
+  final VoidCallback? onUpdated;
 
   const EditRequestScreen({
     super.key,
     required this.repository,
     required this.detail,
-    required this.onUpdated,
+    this.onUpdated,
   });
 
   @override
@@ -98,8 +98,10 @@ class _EditRequestScreenState extends State<EditRequestScreen> {
 
   Future<void> _pickImages() async {
     final files = await _picker.pickMultiImage();
+    if (!mounted || _submitting) return;
     for (final file in files) {
       final bytes = await file.readAsBytes();
+      if (!mounted || _submitting) return;
       final problem = RequestRules.checkNewImage(
         currentCount: _totalImagesCount,
         sizeBytes: bytes.length,
@@ -142,8 +144,9 @@ class _EditRequestScreenState extends State<EditRequestScreen> {
         ),
       );
       if (!mounted) return;
+      widget.onUpdated?.call();
+      if (!mounted) return;
       _showMessage('Đã cập nhật yêu cầu sửa chữa');
-      widget.onUpdated();
       Navigator.of(context).pop(true);
     } catch (e) {
       if (mounted) {
@@ -156,9 +159,12 @@ class _EditRequestScreenState extends State<EditRequestScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Chỉnh sửa yêu cầu')),
-      body: _body(),
+    return PopScope(
+      canPop: !_submitting,
+      child: Scaffold(
+        appBar: AppBar(title: const Text('Chỉnh sửa yêu cầu')),
+        body: _body(),
+      ),
     );
   }
 
