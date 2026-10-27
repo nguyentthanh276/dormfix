@@ -74,6 +74,87 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
     }
   }
 
+  /// DF-012: Hiển thị dialog xác nhận hủy yêu cầu, yêu cầu nhập lý do.
+  Future<void> _showCancelDialog() async {
+    if (_detail == null) return;
+    String reason = '';
+    String? reasonError;
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setStateDialog) => AlertDialog(
+          title: const Text('Hủy yêu cầu'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Vui lòng cho biết lý do bạn muốn hủy yêu cầu này.'),
+              const SizedBox(height: 12),
+              TextField(
+                maxLines: 3,
+                onChanged: (v) => reason = v,
+                decoration: InputDecoration(
+                  hintText: 'Nhập lý do hủy...',
+                  errorText: reasonError,
+                  border: const OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Quay lại'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red.shade600,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () async {
+                final trimmed = reason.trim();
+                if (trimmed.isEmpty) {
+                  setStateDialog(() => reasonError = 'Vui lòng nhập lý do');
+                  return;
+                }
+                Navigator.pop(ctx);
+                await _doCancel(trimmed);
+              },
+              child: const Text('Xác nhận hủy'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _doCancel(String reason) async {
+    setState(() {
+      _loading = true;
+      _errorText = null;
+    });
+    try {
+      await widget.repository.cancelRequest(
+        requestId: widget.requestId,
+        reason: reason,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Đã hủy yêu cầu sửa chữa')));
+      await _load();
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorText = e.toString().replaceAll('Exception: ', '');
+          _loading = false;
+        });
+      }
+    }
+  }
+
   String _two(int n) => n.toString().padLeft(2, '0');
 
   String _formatDate(DateTime d) =>
@@ -83,6 +164,9 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
   Widget build(BuildContext context) {
     final d = _detail;
     final canEdit = d?.request.status == RepairStatus.pending;
+    final canCancel =
+        d?.request.status == RepairStatus.pending ||
+        d?.request.status == RepairStatus.assigned;
 
     return Scaffold(
       appBar: AppBar(
@@ -93,6 +177,12 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
               icon: const Icon(Icons.edit_outlined),
               tooltip: 'Chỉnh sửa yêu cầu',
               onPressed: _navigateToEdit,
+            ),
+          if (canCancel)
+            IconButton(
+              icon: const Icon(Icons.cancel_outlined),
+              tooltip: 'Hủy yêu cầu',
+              onPressed: _showCancelDialog,
             ),
         ],
       ),
@@ -156,6 +246,25 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
               ),
               style: OutlinedButton.styleFrom(
                 side: const BorderSide(color: AppColors.primary),
+                padding: const EdgeInsets.symmetric(vertical: 10),
+              ),
+            ),
+          ),
+
+        // DF-012: Nút hủy yêu cầu khi ở trạng thái pending hoặc assigned
+        if (r.status == RepairStatus.pending ||
+            r.status == RepairStatus.assigned)
+          Padding(
+            padding: const EdgeInsets.only(top: 4, bottom: 4),
+            child: OutlinedButton.icon(
+              onPressed: _showCancelDialog,
+              icon: Icon(Icons.cancel_outlined, color: Colors.red.shade600),
+              label: Text(
+                'Hủy yêu cầu này',
+                style: TextStyle(color: Colors.red.shade600),
+              ),
+              style: OutlinedButton.styleFrom(
+                side: BorderSide(color: Colors.red.shade400),
                 padding: const EdgeInsets.symmetric(vertical: 10),
               ),
             ),
