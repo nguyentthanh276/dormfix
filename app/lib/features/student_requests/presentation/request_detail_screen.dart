@@ -31,6 +31,8 @@ class RequestDetailScreen extends StatefulWidget {
 class _RequestDetailScreenState extends State<RequestDetailScreen> {
   RequestDetail? _detail;
   bool _loading = false;
+  bool _cancelling = false;
+  bool _cancelDialogOpen = false;
   String? _errorText;
 
   @override
@@ -79,62 +81,97 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
 
   /// DF-012: Hiển thị dialog xác nhận hủy yêu cầu, yêu cầu nhập lý do.
   Future<void> _showCancelDialog() async {
-    if (_detail == null) return;
+    final detail = _detail;
+    if (!mounted ||
+        _loading ||
+        _cancelling ||
+        _cancelDialogOpen ||
+        detail == null ||
+        !_canCancel(detail.request.status)) {
+      return;
+    }
     String reason = '';
     String? reasonError;
+    bool dialogClosed = false;
 
-    await showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setStateDialog) => AlertDialog(
-          title: const Text('Hủy yêu cầu'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Vui lòng cho biết lý do bạn muốn hủy yêu cầu này.'),
-              const SizedBox(height: 12),
-              TextField(
-                maxLines: 3,
-                onChanged: (v) => reason = v,
-                decoration: InputDecoration(
-                  hintText: 'Nhập lý do hủy...',
-                  errorText: reasonError,
-                  border: const OutlineInputBorder(),
+    _cancelDialogOpen = true;
+    String? confirmedReason;
+    try {
+      confirmedReason = await showDialog<String>(
+        context: context,
+        useRootNavigator: false,
+        barrierDismissible: false,
+        builder: (ctx) => StatefulBuilder(
+          builder: (ctx, setStateDialog) => AlertDialog(
+            title: const Text('Hủy yêu cầu'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Vui lòng cho biết lý do bạn muốn hủy yêu cầu này.'),
+                const SizedBox(height: 12),
+                TextField(
+                  maxLines: 3,
+                  onChanged: (v) => reason = v,
+                  decoration: InputDecoration(
+                    hintText: 'Nhập lý do hủy...',
+                    errorText: reasonError,
+                    border: const OutlineInputBorder(),
+                  ),
                 ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  if (dialogClosed) return;
+                  dialogClosed = true;
+                  Navigator.pop(ctx);
+                },
+                child: const Text('Quay lại'),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red.shade600,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: () {
+                  if (dialogClosed) return;
+                  final trimmed = reason.trim();
+                  if (trimmed.isEmpty) {
+                    setStateDialog(() => reasonError = 'Vui lòng nhập lý do');
+                    return;
+                  }
+                  dialogClosed = true;
+                  Navigator.pop(ctx, trimmed);
+                },
+                child: const Text('Xác nhận hủy'),
               ),
             ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Quay lại'),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red.shade600,
-                foregroundColor: Colors.white,
-              ),
-              onPressed: () async {
-                final trimmed = reason.trim();
-                if (trimmed.isEmpty) {
-                  setStateDialog(() => reasonError = 'Vui lòng nhập lý do');
-                  return;
-                }
-                Navigator.pop(ctx);
-                await _doCancel(trimmed);
-              },
-              child: const Text('Xác nhận hủy'),
-            ),
-          ],
         ),
-      ),
-    );
+      );
+    } finally {
+      _cancelDialogOpen = false;
+    }
+    if (!mounted || confirmedReason == null) return;
+    await _doCancel(confirmedReason);
   }
 
+  bool _canCancel(RepairStatus status) =>
+      status == RepairStatus.pending || status == RepairStatus.assigned;
+
   Future<void> _doCancel(String reason) async {
+    final detail = _detail;
+    if (!mounted ||
+        _loading ||
+        _cancelling ||
+        detail == null ||
+        !_canCancel(detail.request.status)) {
+      return;
+    }
     setState(() {
+      _cancelling = true;
       _loading = true;
       _errorText = null;
     });
@@ -155,6 +192,8 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
           _loading = false;
         });
       }
+    } finally {
+      if (mounted) setState(() => _cancelling = false);
     }
   }
 
@@ -171,25 +210,28 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
         d?.request.status == RepairStatus.pending ||
         d?.request.status == RepairStatus.assigned;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(d?.request.requestCode ?? 'Chi tiết'),
-        actions: [
-          if (canEdit)
-            IconButton(
-              icon: const Icon(Icons.edit_outlined),
-              tooltip: 'Chỉnh sửa yêu cầu',
-              onPressed: _loading ? null : _navigateToEdit,
-            ),
-          if (canCancel)
-            IconButton(
-              icon: const Icon(Icons.cancel_outlined),
-              tooltip: 'Hủy yêu cầu',
-              onPressed: _showCancelDialog,
-            ),
-        ],
+    return PopScope(
+      canPop: !_cancelling,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(d?.request.requestCode ?? 'Chi tiết'),
+          actions: [
+            if (canEdit)
+              IconButton(
+                icon: const Icon(Icons.edit_outlined),
+                tooltip: 'Chỉnh sửa yêu cầu',
+                onPressed: _loading || _cancelling ? null : _navigateToEdit,
+              ),
+            if (canCancel)
+              IconButton(
+                icon: const Icon(Icons.cancel_outlined),
+                tooltip: 'Hủy yêu cầu',
+                onPressed: _loading || _cancelling ? null : _showCancelDialog,
+              ),
+          ],
+        ),
+        body: _body(),
       ),
-      body: _body(),
     );
   }
 
@@ -260,7 +302,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
           Padding(
             padding: const EdgeInsets.only(top: 4, bottom: 4),
             child: OutlinedButton.icon(
-              onPressed: _showCancelDialog,
+              onPressed: _loading || _cancelling ? null : _showCancelDialog,
               icon: Icon(Icons.cancel_outlined, color: Colors.red.shade600),
               label: Text(
                 'Hủy yêu cầu này',
