@@ -97,7 +97,9 @@ class MockRequestRepository implements RequestRepository {
     final at = r.createdAt;
 
     final history = _historyFor(r);
-    final assigned = r.status != RepairStatus.pending;
+    final assigned = history.any(
+      (entry) => entry.status == RepairStatus.assigned,
+    );
 
     // Dữ liệu kết quả sửa chữa (DF-026 / DF-010)
     final hasResult =
@@ -213,6 +215,54 @@ class MockRequestRepository implements RequestRepository {
       HistoryEntry(
         status: RepairStatus.pending,
         note: 'Sinh viên chỉnh sửa thông tin yêu cầu',
+        createdAt: DateTime.now(),
+        actorId: studentId,
+        actorName: studentName,
+      ),
+    );
+    _customHistories[current.id] = currentHistory;
+  }
+
+  @override
+  Future<void> cancelRequest({
+    required String requestId,
+    required String reason,
+  }) async {
+    final trimmedReason = reason.trim();
+    if (trimmedReason.isEmpty) throw Exception('Vui lòng nhập lý do');
+    if (delay > Duration.zero) await Future.delayed(delay);
+
+    final index = _requests.indexWhere((e) => e.id == requestId);
+    if (index < 0) throw Exception('Yêu cầu không tồn tại');
+
+    final current = _requests[index];
+    // Chỉ hủy được khi pending hoặc assigned
+    if (current.status != RepairStatus.pending &&
+        current.status != RepairStatus.assigned) {
+      throw Exception(
+        'Chỉ có thể hủy yêu cầu khi đang ở trạng thái '
+        'Chờ tiếp nhận hoặc Đã phân công.',
+      );
+    }
+
+    final currentHistory = List<HistoryEntry>.from(_historyFor(current));
+
+    // Cập nhật trạng thái → cancelled
+    _requests[index] = RepairRequest(
+      id: current.id,
+      requestCode: current.requestCode,
+      title: current.title,
+      categoryName: current.categoryName,
+      roomCode: current.roomCode,
+      status: RepairStatus.cancelled,
+      createdAt: current.createdAt,
+    );
+
+    // Ghi lịch sử hủy
+    currentHistory.add(
+      HistoryEntry(
+        status: RepairStatus.cancelled,
+        note: 'Sinh viên hủy yêu cầu: $trimmedReason',
         createdAt: DateTime.now(),
         actorId: studentId,
         actorName: studentName,

@@ -20,4 +20,11 @@ abstract class RequestRepository {
 
   /// DF-011: sửa yêu cầu khi ở trạng thái Chờ tiếp nhận (pending).
   Future<void> updateRequest(EditRepairRequest request);
+
+  /// DF-012: hủy yêu cầu khi ở pending hoặc assigned. Lý do bắt buộc.
+  /// Ném lỗi nếu trạng thái không cho phép hủy (ví dụ đã in_progress).
+  Future<void> cancelRequest({
+    required String requestId,
+    required String reason,
+  });
 }
