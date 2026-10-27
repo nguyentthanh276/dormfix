@@ -1,4 +1,5 @@
 import '../../../../core/models/repair_status.dart';
+import '../models/edit_repair_request.dart';
 import '../models/history_entry.dart';
 import '../models/incident_category.dart';
 import '../models/new_repair_request.dart';
@@ -13,14 +14,47 @@ import 'request_repository.dart';
 class MockRequestRepository implements RequestRepository {
   MockRequestRepository({
     String? roomCode,
+    this.studentId = 'mock-student',
+    this.studentName = 'Sinh viên demo',
     this.delay = const Duration(milliseconds: 300),
   }) : roomCode = roomCode ?? 'DEMO-A101';
 
+  /// Khởi tạo repo có sẵn 1 yêu cầu pending ('mock-3') phục vụ test và demo DF-011.
+  factory MockRequestRepository.withSamplePending({
+    String? roomCode,
+    String studentId = 'mock-student',
+    String studentName = 'Sinh viên demo',
+    Duration delay = Duration.zero,
+  }) {
+    final repo = MockRequestRepository(
+      roomCode: roomCode,
+      studentId: studentId,
+      studentName: studentName,
+      delay: delay,
+    );
+    repo._requests.insert(
+      0,
+      repo._sample(
+        3,
+        'Cửa sổ bị kẹt chốt',
+        'Nội thất',
+        RepairStatus.pending,
+        1,
+      ),
+    );
+    repo._customDescriptions['mock-3'] = 'Chốt cửa bị gỉ sét không đóng được';
+    repo._nextNumber = 4;
+    return repo;
+  }
+
   final String roomCode;
+  final String studentId;
+  final String studentName;
   final Duration delay;
 
   bool failFetch = false;
   bool failCreate = false;
+  bool failUpdate = false;
 
   static const _categories = [
     IncidentCategory(id: 'cat-dien', name: 'Điện'),
@@ -46,55 +80,23 @@ class MockRequestRepository implements RequestRepository {
   // Lưu mô tả và ảnh cho các yêu cầu mới tạo hoặc tùy chỉnh
   final Map<String, String> _customDescriptions = {};
   final Map<String, List<String>> _customPhotos = {};
+  final Map<String, List<HistoryEntry>> _customHistories = {};
 
   @override
   Future<List<RepairRequest>> fetchMyRequests() async {
-    await Future.delayed(delay);
+    if (delay > Duration.zero) await Future.delayed(delay);
     if (failFetch) throw Exception('Mock: lỗi tải danh sách');
     return List.of(_requests);
   }
 
   @override
   Future<RequestDetail> fetchRequestDetail(String requestId) async {
-    await Future.delayed(delay);
+    if (delay > Duration.zero) await Future.delayed(delay);
     if (failFetch) throw Exception('Mock: lỗi tải chi tiết');
     final r = _requests.firstWhere((e) => e.id == requestId);
     final at = r.createdAt;
 
-    final history = [
-      HistoryEntry(
-        status: RepairStatus.pending,
-        note: 'Sinh viên gửi yêu cầu',
-        createdAt: at,
-      ),
-      if (r.status != RepairStatus.pending)
-        HistoryEntry(
-          status: RepairStatus.assigned,
-          note: 'Phân công cho Lê Văn Cường',
-          createdAt: at.add(const Duration(hours: 2)),
-        ),
-      if (r.status == RepairStatus.inProgress ||
-          r.status == RepairStatus.awaitingConfirmation ||
-          r.status == RepairStatus.completed)
-        HistoryEntry(
-          status: RepairStatus.inProgress,
-          note: 'Kỹ thuật viên bắt đầu xử lý',
-          createdAt: at.add(const Duration(hours: 10)),
-        ),
-      if (r.status == RepairStatus.awaitingConfirmation ||
-          r.status == RepairStatus.completed)
-        HistoryEntry(
-          status: RepairStatus.awaitingConfirmation,
-          note: 'Báo cáo kết quả sửa chữa',
-          createdAt: at.add(const Duration(hours: 20)),
-        ),
-      if (r.status == RepairStatus.completed)
-        HistoryEntry(
-          status: RepairStatus.completed,
-          note: 'Đã hoàn tất xử lý sự cố',
-          createdAt: at.add(const Duration(hours: 24)),
-        ),
-    ];
+    final history = _historyFor(r);
     final assigned = r.status != RepairStatus.pending;
 
     // Dữ liệu kết quả sửa chữa (DF-026 / DF-010)
@@ -140,13 +142,13 @@ class MockRequestRepository implements RequestRepository {
 
   @override
   Future<List<IncidentCategory>> fetchCategories() async {
-    await Future.delayed(delay);
+    if (delay > Duration.zero) await Future.delayed(delay);
     return _categories;
   }
 
   @override
   Future<RepairRequest> createRequest(NewRepairRequest request) async {
-    await Future.delayed(delay);
+    if (delay > Duration.zero) await Future.delayed(delay);
     if (failCreate) throw Exception('Mock: lỗi tạo yêu cầu');
     final category = _categories.firstWhere((c) => c.id == request.categoryId);
     final created = RepairRequest(
@@ -163,6 +165,101 @@ class MockRequestRepository implements RequestRepository {
     _nextNumber++;
     _requests.insert(0, created); // mới nhất lên đầu
     return created;
+  }
+
+  @override
+  Future<void> updateRequest(EditRepairRequest request) async {
+    if (delay > Duration.zero) await Future.delayed(delay);
+    if (failUpdate) throw Exception('Mock: lỗi cập nhật yêu cầu');
+
+    final index = _requests.indexWhere((e) => e.id == request.requestId);
+    if (index < 0) throw Exception('Yêu cầu không tồn tại');
+
+    final current = _requests[index];
+    // Kiểm tra trạng thái: chỉ cho sửa khi đang ở pending
+    if (current.status != RepairStatus.pending) {
+      throw Exception(
+        'Chỉ có thể chỉnh sửa yêu cầu khi đang ở trạng thái Chờ tiếp nhận.',
+      );
+    }
+
+    final category = _categories.firstWhere((c) => c.id == request.categoryId);
+
+    // Cập nhật lại yêu cầu
+    final updated = RepairRequest(
+      id: current.id,
+      requestCode: current.requestCode,
+      title: request.title,
+      categoryName: category.name,
+      roomCode: current.roomCode,
+      status: current.status,
+      createdAt: current.createdAt,
+    );
+    _requests[index] = updated;
+
+    // Cập nhật mô tả
+    _customDescriptions[current.id] = request.description;
+
+    // Cập nhật ảnh: ảnh cũ giữ lại + ảnh mới
+    final combinedPhotos = [
+      ...request.keepPhotos,
+      ...request.newAttachments.map((a) => a.name),
+    ];
+    _customPhotos[current.id] = combinedPhotos;
+
+    // Ghi lịch sử chỉnh sửa
+    final currentHistory = List<HistoryEntry>.from(_historyFor(current));
+    currentHistory.add(
+      HistoryEntry(
+        status: RepairStatus.pending,
+        note: 'Sinh viên chỉnh sửa thông tin yêu cầu',
+        createdAt: DateTime.now(),
+        actorId: studentId,
+        actorName: studentName,
+      ),
+    );
+    _customHistories[current.id] = currentHistory;
+  }
+
+  List<HistoryEntry> _historyFor(RepairRequest r) {
+    final at = r.createdAt;
+    return _customHistories[r.id] ??
+        [
+          HistoryEntry(
+            status: RepairStatus.pending,
+            note: 'Sinh viên gửi yêu cầu',
+            createdAt: at,
+            actorId: studentId,
+            actorName: studentName,
+          ),
+          if (r.status != RepairStatus.pending)
+            HistoryEntry(
+              status: RepairStatus.assigned,
+              note: 'Phân công cho Lê Văn Cường',
+              createdAt: at.add(const Duration(hours: 2)),
+            ),
+          if (r.status == RepairStatus.inProgress ||
+              r.status == RepairStatus.awaitingConfirmation ||
+              r.status == RepairStatus.completed)
+            HistoryEntry(
+              status: RepairStatus.inProgress,
+              note: 'Kỹ thuật viên bắt đầu xử lý',
+              createdAt: at.add(const Duration(hours: 10)),
+            ),
+          if (r.status == RepairStatus.awaitingConfirmation ||
+              r.status == RepairStatus.completed)
+            HistoryEntry(
+              status: RepairStatus.awaitingConfirmation,
+              note: 'Báo cáo kết quả sửa chữa',
+              createdAt: at.add(const Duration(hours: 20)),
+            ),
+          if (r.status == RepairStatus.completed)
+            HistoryEntry(
+              status: RepairStatus.completed,
+              note: 'Đã hoàn tất xử lý sự cố',
+              createdAt: at.add(const Duration(hours: 24)),
+            ),
+        ];
   }
 
   String _code(int n) => 'DF${n.toString().padLeft(6, '0')}';
