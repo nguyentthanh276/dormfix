@@ -17,7 +17,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Chờ xác nhận'), findsOneWidget);
+      expect(find.widgetWithText(AppBar, 'Chờ xác nhận'), findsOneWidget);
+      expect(find.text('Chờ xác nhận'), findsWidgets);
       expect(find.text('Bình nóng lạnh không vào điện'), findsOneWidget);
       expect(find.text('Bồn rửa mặt bị rỉ nước'), findsOneWidget);
       expect(find.text('DF000004'), findsOneWidget);
