@@ -29,7 +29,7 @@ class MockAdminAccountsRepository implements AdminAccountsRepository {
 
   static String _normalize(String value) {
     const from = 'áàảãạăắằẳẵặâấầẩẫậéèẻẽẹêếềểễệíìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữựýỳỷỹỵđ';
-    const to = 'aaaaaaaaaaaaaaaaaeeeeeeeeeeeiiiii ooooooooooooooooo uuuuuuuuuuu yyyyyd'.replaceAll(' ', '');
+    const to = 'aaaaaaaaaaaaaaaaaeeeeeeeeeeeiiiiiooooooooooooooooouuuuuuuuuuuyyyyyd';
     final lower = value.toLowerCase();
     final out = StringBuffer();
     for (final rune in lower.runes) {
