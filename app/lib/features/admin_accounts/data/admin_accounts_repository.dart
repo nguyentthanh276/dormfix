@@ -52,8 +52,9 @@ class SupabaseAdminAccountsRepository implements AdminAccountsRepository {
         'Không thể tải danh sách tài khoản do lỗi dịch vụ. Vui lòng thử lại.',
       );
     }
-    if (response is! List)
+    if (response is! List) {
       throw const FormatException('Dữ liệu danh sách không hợp lệ.');
+    }
     return response
         .map(
           (row) =>
