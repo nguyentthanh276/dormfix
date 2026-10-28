@@ -42,7 +42,16 @@ class _AdminAccountsPageState extends State<AdminAccountsPage> {
       if (!mounted) return;
       final hasMore = items.length > _pageSize;
       setState(() { _accounts = append ? [..._accounts, ...items.take(_pageSize)] : items.take(_pageSize).toList(); _hasMore = hasMore; _offset = append ? _offset + _pageSize : _pageSize; _loading = false; });
-    } catch (_) { if (mounted) setState(() { _loading = false; _error = 'Không thể tải danh sách tài khoản. Vui lòng thử lại.'; }); }
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _error = error is AdminAccountsFailure
+              ? error.message
+              : 'Không thể tải danh sách tài khoản. Vui lòng thử lại.';
+        });
+      }
+    }
   }
 
   void _searchChanged(String _) { _debounce?.cancel(); _debounce = Timer(const Duration(milliseconds: 350), () => _load()); }
