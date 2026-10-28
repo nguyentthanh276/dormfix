@@ -14,16 +14,35 @@ class StatusChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: status.color.withAlpha(35),
+        color: status.color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        status.label,
-        style: TextStyle(
-          color: status.color,
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
+        border: Border.all(
+          color: status.color.withValues(alpha: 0.25),
+          width: 0.8,
         ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(
+              color: status.color,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            status.label,
+            style: TextStyle(
+              color: status.color,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.1,
+            ),
+          ),
+        ],
       ),
     );
   }
