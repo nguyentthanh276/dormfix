@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../data/student_confirmation_repository.dart';
 
 class ConfirmFixedDialog extends StatefulWidget {
@@ -62,7 +63,11 @@ class _ConfirmFixedDialogState extends State<ConfirmFixedDialog> {
                   } catch (e) {
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
+                        SnackBar(
+                          content: Text(
+                            e.toString().replaceAll('Exception: ', ''),
+                          ),
+                        ),
                       );
                     }
                   } finally {
@@ -70,7 +75,11 @@ class _ConfirmFixedDialogState extends State<ConfirmFixedDialog> {
                   }
                 },
           child: _submitting
-              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
               : const Text('Xác nhận hoàn tất'),
         ),
       ],
