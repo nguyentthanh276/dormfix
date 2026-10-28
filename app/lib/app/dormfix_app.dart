@@ -73,8 +73,11 @@ class _DormFixAppState extends State<DormFixApp> {
         (widget.backendReady
             ? SupabaseProfileRepository(Supabase.instance.client)
             : null);
-    _adminAccountsRepository = widget.adminAccountsRepository ??
-        (widget.backendReady ? SupabaseAdminAccountsRepository(Supabase.instance.client) : null);
+    _adminAccountsRepository =
+        widget.adminAccountsRepository ??
+        (widget.backendReady
+            ? SupabaseAdminAccountsRepository(Supabase.instance.client)
+            : null);
   }
 
   @override
