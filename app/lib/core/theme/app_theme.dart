@@ -33,7 +33,10 @@ abstract final class AppTheme {
       selectedItemColor: AppColors.primaryDark,
       unselectedItemColor: Colors.black45,
       selectedLabelStyle: TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
-      unselectedLabelStyle: TextStyle(fontWeight: FontWeight.w500, fontSize: 11),
+      unselectedLabelStyle: TextStyle(
+        fontWeight: FontWeight.w500,
+        fontSize: 11,
+      ),
       elevation: 4,
       type: BottomNavigationBarType.fixed,
     ),
