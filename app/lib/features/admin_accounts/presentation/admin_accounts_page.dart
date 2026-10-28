@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui' show FontFeature;
 
 import 'package:flutter/material.dart';
 
@@ -175,16 +174,14 @@ class _AdminAccountsPageState extends State<AdminAccountsPage> {
           children: [
             Text(
               'Tài khoản',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
+              style: Theme.of(context).textTheme.headlineSmall
+                  ?.copyWith(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 3),
             Text(
               'Danh sách Sinh viên và Kỹ thuật viên',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Colors.black54,
-              ),
+              style: Theme.of(context).textTheme.bodyMedium
+                  ?.copyWith(color: Colors.black54),
             ),
           ],
         ),
@@ -198,9 +195,8 @@ class _AdminAccountsPageState extends State<AdminAccountsPage> {
       children: [
         Text(
           'Tìm kiếm và lọc',
-          style: Theme.of(
-            context,
-          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+          style: Theme.of(context).textTheme.titleMedium
+              ?.copyWith(fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 14),
         TextField(
@@ -248,9 +244,10 @@ class _AdminAccountsPageState extends State<AdminAccountsPage> {
     hint: 'Tất cả vai trò',
     items: [
       const DropdownMenuItem(value: null, child: Text('Tất cả vai trò')),
-      ...[AppRole.student, AppRole.technician].map(
-        (role) => DropdownMenuItem(value: role, child: Text(role.label)),
-      ),
+      ...[
+        AppRole.student,
+        AppRole.technician,
+      ].map((role) => DropdownMenuItem(value: role, child: Text(role.label))),
     ],
     onChanged: (value) {
       setState(() => _role = value);
@@ -289,16 +286,14 @@ class _AdminAccountsPageState extends State<AdminAccountsPage> {
                   children: [
                     Text(
                       'Danh sách tài khoản',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
+                      style: Theme.of(context).textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w700),
                     ),
                     const SizedBox(height: 3),
                     Text(
                       'Thông tin tài khoản theo bộ lọc hiện tại',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Colors.black54,
-                      ),
+                      style: Theme.of(context).textTheme.bodySmall
+                          ?.copyWith(color: Colors.black54),
                     ),
                   ],
                 ),
@@ -441,9 +436,8 @@ class _AdminAccountsPageState extends State<AdminAccountsPage> {
         Text(
           message,
           textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-            color: Colors.black87,
-          ),
+          style: Theme.of(context).textTheme.bodyLarge
+              ?.copyWith(color: Colors.black87),
         ),
         if (action != null) ...[const SizedBox(height: 8), action],
       ],
@@ -460,7 +454,10 @@ class _AdminAccountsPageState extends State<AdminAccountsPage> {
 }
 
 class _SurfaceCard extends StatelessWidget {
-  const _SurfaceCard({required this.child, this.padding = const EdgeInsets.all(20)});
+  const _SurfaceCard({
+    required this.child,
+    this.padding = const EdgeInsets.all(20),
+  });
 
   final Widget child;
   final EdgeInsetsGeometry padding;
@@ -581,9 +578,18 @@ class _StatusPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (color, background) = switch (status) {
-      AccountStatus.active => (const Color(0xFF15803D), const Color(0xFFEAF7EE)),
-      AccountStatus.locked => (const Color(0xFFB45309), const Color(0xFFFFF4E5)),
-      AccountStatus.revoked => (const Color(0xFF64748B), const Color(0xFFF1F4F7)),
+      AccountStatus.active => (
+        const Color(0xFF15803D),
+        const Color(0xFFEAF7EE),
+      ),
+      AccountStatus.locked => (
+        const Color(0xFFB45309),
+        const Color(0xFFFFF4E5),
+      ),
+      AccountStatus.revoked => (
+        const Color(0xFF64748B),
+        const Color(0xFFF1F4F7),
+      ),
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
