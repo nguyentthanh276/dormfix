@@ -4,6 +4,8 @@ import 'admin_accounts_repository.dart';
 
 /// DF-028/029/030: local demo data for UI checks before Supabase is configured.
 class MockAdminAccountsRepository implements AdminAccountsRepository {
+  const MockAdminAccountsRepository();
+
   static const _accounts = [
     ManagedAccount(fullName: 'Nguyễn Minh An', identityCode: 'SV001', role: AppRole.student, status: AccountStatus.active),
     ManagedAccount(fullName: 'Trần Thu Bình', identityCode: 'SV002', role: AppRole.student, status: AccountStatus.locked),
