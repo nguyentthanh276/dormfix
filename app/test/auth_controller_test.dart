@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:dormfix/app/dormfix_app.dart';
 import 'package:dormfix/core/models/app_role.dart';
+import 'package:dormfix/features/admin_accounts/data/mock_admin_accounts_repository.dart';
 import 'package:dormfix/features/auth/data/auth_repository.dart';
 import 'package:dormfix/features/auth/models/user_profile.dart';
 import 'package:dormfix/features/auth/presentation/auth_controller.dart';
@@ -248,7 +249,12 @@ void main() {
       (tester) async {
         final repository = FakeAuthRepository(profile(role: role));
         repositories.add(repository);
-        await tester.pumpWidget(DormFixApp(authRepository: repository));
+        await tester.pumpWidget(
+          DormFixApp(
+            authRepository: repository,
+            adminAccountsRepository: const MockAdminAccountsRepository(),
+          ),
+        );
         await tester.pumpAndSettle();
 
         expect(find.text('Đăng nhập DormFix'), findsOneWidget);
@@ -261,10 +267,18 @@ void main() {
         await tester.pumpAndSettle();
 
         // Sinh viên đã có màn thật (Yêu cầu của tôi); 2 vai trò còn lại vẫn là màn tạm.
-        if (role != AppRole.student) {
+        if (role == AppRole.technician) {
           expect(find.text('Vai trò: ${role.label}'), findsOneWidget);
         }
         expect(find.text(_homeTitle(role)), findsOneWidget);
+        if (role == AppRole.admin) {
+          await tester.tap(find.byIcon(Icons.manage_accounts_outlined));
+          await tester.pumpAndSettle();
+          expect(find.text('SV001'), findsOneWidget);
+          await tester.tap(find.byType(BackButton));
+          await tester.pumpAndSettle();
+          expect(find.text(_homeTitle(role)), findsOneWidget);
+        }
         if (role == AppRole.student) {
           // Màn sinh viên tải dữ liệu mock (0,6 giây): chờ xong rồi sang tab Tài khoản.
           await tester.pump(const Duration(seconds: 1));
