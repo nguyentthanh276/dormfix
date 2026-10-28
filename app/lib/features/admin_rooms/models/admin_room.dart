@@ -3,7 +3,7 @@ class AdminRoom {
   final String code;
   final String building;
   final bool isActive;
-  final List<String> studentNames; 
+  final List<String> studentNames;
 
   AdminRoom({
     required this.id,

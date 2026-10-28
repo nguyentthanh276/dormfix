@@ -1,11 +1,19 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../models/admin_room.dart';
 
 class AdminRoomRepository {
-  final SupabaseClient _client = Supabase.instance.client;
+  // Tránh gọi Supabase.instance.client trực tiếp tại biến khởi tạo
+  SupabaseClient? get _client {
+    try {
+      return Supabase.instance.client;
+    } catch (_) {
+      return null;
+    }
+  }
 
-  // Dữ liệu mẫu dự phòng khi chạy preview chưa đăng nhập (bị lỗi 42501)
+  // Dữ liệu mẫu dự phòng khi chạy preview chưa đăng nhập hoặc chưa kết nối Supabase
   static final List<AdminRoom> _fallbackRooms = [
     AdminRoom(
       id: 'room-1',
@@ -39,8 +47,13 @@ class AdminRoomRepository {
 
   /// DF-039: Lấy danh sách phòng kèm thông tin sinh viên
   Future<List<AdminRoom>> fetchRooms() async {
+    final client = _client;
+    if (client == null) {
+      return List.from(_fallbackRooms);
+    }
+
     try {
-      final response = await _client
+      final response = await client
           .from('rooms')
           .select('id, code, building, is_active, profiles(full_name)')
           .order('code', ascending: true);
@@ -50,15 +63,15 @@ class AdminRoomRepository {
           .toList();
     } on PostgrestException catch (e) {
       if (e.code == '42501') {
-        debugPrint('Chưa có quyền 42501 trên Supabase: Dùng dữ liệu phòng mẫu dự phòng.');
+        debugPrint(
+          'Chưa có quyền 42501 trên Supabase: Dùng dữ liệu phòng mẫu dự phòng.',
+        );
         return List.from(_fallbackRooms);
       }
       rethrow;
     } catch (e) {
-      if (e.toString().contains('42501')) {
-        return List.from(_fallbackRooms);
-      }
-      rethrow;
+      debugPrint('Lỗi tải danh sách phòng, dùng dữ liệu mẫu: $e');
+      return List.from(_fallbackRooms);
     }
   }
 
@@ -70,8 +83,29 @@ class AdminRoomRepository {
       throw Exception('Mã phòng và tòa nhà không được để trống.');
     }
 
+    final client = _client;
+    if (client == null) {
+      final isExist = _fallbackRooms.any(
+        (r) => r.code.toUpperCase() == trimmedCode.toUpperCase(),
+      );
+      if (isExist) {
+        throw Exception('Mã phòng "$trimmedCode" đã tồn tại.');
+      }
+
+      _fallbackRooms.add(
+        AdminRoom(
+          id: 'room-${DateTime.now().millisecondsSinceEpoch}',
+          code: trimmedCode,
+          building: trimmedBuilding,
+          isActive: true,
+          studentNames: [],
+        ),
+      );
+      return;
+    }
+
     try {
-      await _client.from('rooms').insert({
+      await client.from('rooms').insert({
         'code': trimmedCode,
         'building': trimmedBuilding,
         'is_active': true,
@@ -84,7 +118,9 @@ class AdminRoomRepository {
         final isExist = _fallbackRooms.any(
           (r) => r.code.toUpperCase() == trimmedCode.toUpperCase(),
         );
-        if (isExist) throw Exception('Mã phòng "$trimmedCode" đã tồn tại.');
+        if (isExist) {
+          throw Exception('Mã phòng "$trimmedCode" đã tồn tại.');
+        }
 
         _fallbackRooms.add(
           AdminRoom(
@@ -113,12 +149,31 @@ class AdminRoomRepository {
       throw Exception('Mã phòng và tòa nhà không được để trống.');
     }
 
+    final client = _client;
+    if (client == null) {
+      final index = _fallbackRooms.indexWhere((r) => r.id == roomId);
+      if (index != -1) {
+        final old = _fallbackRooms[index];
+        _fallbackRooms[index] = AdminRoom(
+          id: old.id,
+          code: trimmedCode,
+          building: trimmedBuilding,
+          isActive: old.isActive,
+          studentNames: old.studentNames,
+        );
+      }
+      return;
+    }
+
     try {
-      await _client.from('rooms').update({
-        'code': trimmedCode,
-        'building': trimmedBuilding,
-        'updated_at': DateTime.now().toIso8601String(),
-      }).eq('id', roomId);
+      await client
+          .from('rooms')
+          .update({
+            'code': trimmedCode,
+            'building': trimmedBuilding,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', roomId);
     } on PostgrestException catch (e) {
       if (e.code == '23505') {
         throw Exception('Mã phòng "$trimmedCode" đã tồn tại.');
@@ -143,18 +198,36 @@ class AdminRoomRepository {
 
   /// DF-042: Ngừng sử dụng phòng (Kiểm tra chặn nếu còn sinh viên)
   Future<void> deactivateRoom(AdminRoom room) async {
-    // Nghiệp vụ bắt buộc: Không cho phép ngừng hoạt động phòng nếu còn sinh viên
     if (room.studentNames.isNotEmpty) {
       throw Exception(
         'Không thể ngừng sử dụng phòng ${room.code} vì vẫn còn ${room.studentNames.length} sinh viên đang ở. Vui lòng chuyển sinh viên sang phòng khác trước.',
       );
     }
 
+    final client = _client;
+    if (client == null) {
+      final index = _fallbackRooms.indexWhere((r) => r.id == room.id);
+      if (index != -1) {
+        final old = _fallbackRooms[index];
+        _fallbackRooms[index] = AdminRoom(
+          id: old.id,
+          code: old.code,
+          building: old.building,
+          isActive: false,
+          studentNames: old.studentNames,
+        );
+      }
+      return;
+    }
+
     try {
-      await _client.from('rooms').update({
-        'is_active': false,
-        'updated_at': DateTime.now().toIso8601String(),
-      }).eq('id', room.id);
+      await client
+          .from('rooms')
+          .update({
+            'is_active': false,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', room.id);
     } on PostgrestException catch (e) {
       if (e.code == '42501') {
         final index = _fallbackRooms.indexWhere((r) => r.id == room.id);
