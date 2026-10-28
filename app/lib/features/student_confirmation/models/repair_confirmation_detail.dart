@@ -17,9 +17,16 @@ class TechnicianResultInfo {
   factory TechnicianResultInfo.fromJson(Map<String, dynamic> json) {
     return TechnicianResultInfo(
       content: json['content'] as String? ?? '',
-      technicianName: json['profiles']?['full_name'] as String? ?? 'Kỹ thuật viên',
-      submittedAt: DateTime.tryParse(json['submitted_at'] as String? ?? '') ?? DateTime.now(),
-      imageUrls: (json['images'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
+      technicianName:
+          json['profiles']?['full_name'] as String? ?? 'Kỹ thuật viên',
+      submittedAt:
+          DateTime.tryParse(json['submitted_at'] as String? ?? '') ??
+          DateTime.now(),
+      imageUrls:
+          (json['images'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          [],
     );
   }
 }

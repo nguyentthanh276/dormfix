@@ -1,6 +1,6 @@
 import 'dart:io';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class StudentConfirmationRepository {
   final SupabaseClient _client = Supabase.instance.client;
@@ -22,15 +22,18 @@ class StudentConfirmationRepository {
 
       final ext = path.split('.').last.toLowerCase();
       final mimeType = ext == 'png' ? 'image/png' : 'image/jpeg';
-      final fileName = '${requestId}_${DateTime.now().millisecondsSinceEpoch}_${path.hashCode}.$ext';
+      final fileName =
+          '${requestId}_${DateTime.now().millisecondsSinceEpoch}_${path.hashCode}.$ext';
       final storagePath = 'requests/$requestId/$fileName';
 
       // 1. Tải lên Storage Bucket 'repair_images'
-      await _client.storage.from('repair_images').uploadBinary(
-        storagePath,
-        bytes,
-        fileOptions: FileOptions(contentType: mimeType),
-      );
+      await _client.storage
+          .from('repair_images')
+          .uploadBinary(
+            storagePath,
+            bytes,
+            fileOptions: FileOptions(contentType: mimeType),
+          );
 
       // 2. Thêm bản ghi vào bảng request_attachments
       await _client.from('request_attachments').insert({
@@ -45,12 +48,11 @@ class StudentConfirmationRepository {
   }
 
   /// [DF-014] Xác nhận đã khắc phục (Hoàn tất)
-  Future<void> confirmFixed({
-    required String requestId,
-    String? note,
-  }) async {
+  Future<void> confirmFixed({required String requestId, String? note}) async {
     final userId = _client.auth.currentUser?.id;
-    if (userId == null) throw Exception('Chưa đăng nhập.');
+    if (userId == null) {
+      throw Exception('Chưa đăng nhập.');
+    }
 
     final res = await _client
         .from('repair_requests')
@@ -67,7 +69,9 @@ class StudentConfirmationRepository {
         .select('id');
 
     if ((res as List).isEmpty) {
-      throw Exception('Không thể xác nhận: Đơn không ở trạng thái Chờ xác nhận hoặc không chính chủ.');
+      throw Exception(
+        'Không thể xác nhận: Đơn không ở trạng thái Chờ xác nhận hoặc không chính chủ.',
+      );
     }
 
     await _client.from('request_history').insert({
@@ -89,11 +93,17 @@ class StudentConfirmationRepository {
     List<String> imagePaths = const [],
   }) async {
     final userId = _client.auth.currentUser?.id;
-    if (userId == null) throw Exception('Chưa đăng nhập.');
+    if (userId == null) {
+      throw Exception('Chưa đăng nhập.');
+    }
 
     final trimmedReason = reason.trim();
-    if (trimmedReason.isEmpty) throw Exception('Lý do sửa lại không được để trống.');
-    if (imagePaths.length > 5) throw Exception('Tối đa 5 hình ảnh.');
+    if (trimmedReason.isEmpty) {
+      throw Exception('Lý do sửa lại không được để trống.');
+    }
+    if (imagePaths.length > 5) {
+      throw Exception('Tối đa 5 hình ảnh.');
+    }
 
     // 1. Chuyển trạng thái sang awaiting_rework (giữ nguyên KTV phụ trách)
     final res = await _client
@@ -110,7 +120,9 @@ class StudentConfirmationRepository {
         .select('id');
 
     if ((res as List).isEmpty) {
-      throw Exception('Đơn không ở trạng thái Chờ xác nhận hoặc không chính chủ.');
+      throw Exception(
+        'Đơn không ở trạng thái Chờ xác nhận hoặc không chính chủ.',
+      );
     }
 
     // 2. Lưu phản hồi vào request_feedback (kind: 'rework')
@@ -159,16 +171,25 @@ class StudentConfirmationRepository {
     List<String> imagePaths = const [],
   }) async {
     final userId = _client.auth.currentUser?.id;
-    if (userId == null) throw Exception('Chưa đăng nhập.');
+    if (userId == null) {
+      throw Exception('Chưa đăng nhập.');
+    }
 
     // Ràng buộc: Phòng của đơn phải trùng phòng hiện tại của SV
     if (requestRoomId != currentStudentRoomId) {
-      throw Exception('Chỉ được mở lại yêu cầu thuộc phòng bạn đang ở hiện tại.');
+      throw Exception(
+        'Chỉ được mở lại yêu cầu thuộc phòng bạn đang ở hiện tại.',
+      );
     }
 
     final trimmedReason = reason.trim();
-    if (trimmedReason.isEmpty) throw Exception('Lý do mở lại không được để trống.');
-    if (imagePaths.length > 5) throw Exception('Tối đa 5 hình ảnh.');
+    if (trimmedReason.isEmpty) {
+      throw Exception('Lý do mở lại không được để trống.');
+    }
+
+    if (imagePaths.length > 5) {
+      throw Exception('Tối đa 5 hình ảnh.');
+    }
 
     // 1. Chuyển trạng thái sang pending, BỎ phân công hiện tại (assigned_technician_id = null)
     final res = await _client
@@ -179,15 +200,13 @@ class StudentConfirmationRepository {
           'completed_at': null,
           'updated_at': DateTime.now().toIso8601String(),
         })
-        .match({
-          'id': requestId,
-          'status': 'completed',
-          'student_id': userId,
-        })
+        .match({'id': requestId, 'status': 'completed', 'student_id': userId})
         .select('id');
 
     if ((res as List).isEmpty) {
-      throw Exception('Không thể mở lại: Đơn không ở trạng thái Hoàn tất hoặc bạn không có quyền.');
+      throw Exception(
+        'Không thể mở lại: Đơn không ở trạng thái Hoàn tất hoặc bạn không có quyền.',
+      );
     }
 
     // 2. Thêm bản ghi phản hồi (kind: 'reopen')

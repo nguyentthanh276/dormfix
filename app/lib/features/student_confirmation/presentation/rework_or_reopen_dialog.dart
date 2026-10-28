@@ -1,12 +1,15 @@
 import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+
 import '../data/student_confirmation_repository.dart';
 import '../models/confirmation_input.dart';
 
 class ReworkOrReopenDialog extends StatefulWidget {
   final String requestId;
-  final ConfirmationAction action; // requestRework (DF-015) hoặc reopenRequest (DF-016)
+  final ConfirmationAction
+  action; // requestRework (DF-015) hoặc reopenRequest (DF-016)
   final String? requestRoomId;
   final String? currentStudentRoomId;
   final VoidCallback onSuccess;
@@ -54,7 +57,9 @@ class _ReworkOrReopenDialogState extends State<ReworkOrReopenDialog> {
       if (size > 5 * 1024 * 1024) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Ảnh vượt quá dung lượng cho phép (tối đa 5 MB).')),
+            const SnackBar(
+              content: Text('Ảnh vượt quá dung lượng cho phép (tối đa 5 MB).'),
+            ),
           );
         }
         return;
@@ -138,7 +143,9 @@ class _ReworkOrReopenDialogState extends State<ReworkOrReopenDialog> {
                   style: const TextStyle(fontWeight: FontWeight.w600),
                 ),
                 TextButton.icon(
-                  onPressed: _selectedImagePaths.length >= 5 || _submitting ? null : _pickImage,
+                  onPressed: _selectedImagePaths.length >= 5 || _submitting
+                      ? null
+                      : _pickImage,
                   icon: const Icon(Icons.add_photo_alternate, size: 18),
                   label: const Text('Thêm ảnh'),
                 ),
@@ -150,7 +157,8 @@ class _ReworkOrReopenDialogState extends State<ReworkOrReopenDialog> {
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
                   itemCount: _selectedImagePaths.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 8),
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(width: 8),
                   itemBuilder: (ctx, i) {
                     return Stack(
                       children: [
@@ -169,14 +177,20 @@ class _ReworkOrReopenDialogState extends State<ReworkOrReopenDialog> {
                           child: GestureDetector(
                             onTap: _submitting
                                 ? null
-                                : () => setState(() => _selectedImagePaths.removeAt(i)),
+                                : () => setState(
+                                    () => _selectedImagePaths.removeAt(i),
+                                  ),
                             child: Container(
                               decoration: const BoxDecoration(
                                 color: Colors.black54,
                                 shape: BoxShape.circle,
                               ),
                               padding: const EdgeInsets.all(3),
-                              child: const Icon(Icons.close, size: 14, color: Colors.white),
+                              child: const Icon(
+                                Icons.close,
+                                size: 14,
+                                color: Colors.white,
+                              ),
                             ),
                           ),
                         ),
@@ -199,7 +213,11 @@ class _ReworkOrReopenDialogState extends State<ReworkOrReopenDialog> {
             backgroundColor: isRework ? Colors.orange.shade800 : null,
           ),
           child: _submitting
-              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
               : Text(isRework ? 'Gửi yêu cầu sửa lại' : 'Xác nhận mở lại'),
         ),
       ],

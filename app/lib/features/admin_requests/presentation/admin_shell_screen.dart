@@ -11,8 +11,9 @@ import '../../student_requests/presentation/widgets/request_card.dart';
 import '../models/technician_info.dart';
 import 'admin_request_detail_screen.dart';
 
-/// GIAO DIỆN khung quản lý KTX: Tổng quan / Yêu cầu / Kỹ thuật / Tài khoản.
-/// Dữ liệu truyền từ ngoài vào (mock hoặc Supabase), màn này không tự tải.
+import '../../admin_rooms/presentation/admin_room_list_screen.dart';
+import '../../incident_categories/presentation/category_list_screen.dart';
+
 class AdminShellScreen extends StatefulWidget {
   final List<RepairRequest> requests;
   final List<TechnicianInfo> technicians;
@@ -33,7 +34,7 @@ class AdminShellScreen extends StatefulWidget {
 
 class _AdminShellScreenState extends State<AdminShellScreen> {
   int _tab = 0;
-  RepairStatus? _status; // lọc ở tab Yêu cầu, null = tất cả
+  RepairStatus? _status;
 
   Widget _page() {
     switch (_tab) {
@@ -43,6 +44,10 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
         return _requestList();
       case 2:
         return _technicianList();
+      case 3:
+        return const AdminRoomListScreen();
+      case 4:
+        return const CategoryListScreen();
       default:
         return AccountView(
           name: widget.name,
@@ -52,7 +57,6 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
     }
   }
 
-  // Tổng quan: mỗi trạng thái một ô đếm số yêu cầu.
   Widget _overview() {
     return Scaffold(
       appBar: AppBar(title: const Text('Tổng quan')),
@@ -198,6 +202,17 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
           BottomNavigationBarItem(
             icon: Icon(Icons.engineering_outlined),
             label: 'Kỹ thuật',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.meeting_room_outlined),
+            activeIcon: Icon(Icons.meeting_room),
+            label: 'Phòng KTX',
+          ),
+
+          BottomNavigationBarItem(
+            icon: Icon(Icons.category_outlined),
+            activeIcon: Icon(Icons.category),
+            label: 'Sự cố',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.person_outline),

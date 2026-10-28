@@ -1,16 +1,18 @@
 /// Loại hành động xác nhận kết quả của sinh viên
 enum ConfirmationAction {
-  confirmFixed,   // DF-014: Xác nhận đã khắc phục (Hoàn tất)
-  requestRework,  // DF-015: Yêu cầu thợ sửa lại
-  reopenRequest,  // DF-016: Mở lại đơn đã hoàn tất
+  confirmFixed, // DF-014: Xác nhận đã khắc phục (Hoàn tất)
+  requestRework, // DF-015: Yêu cầu thợ sửa lại
+  reopenRequest, // DF-016: Mở lại đơn đã hoàn tất
 }
 
 /// Dữ liệu đầu vào khi sinh viên xác nhận hoặc phản hồi
 class ConfirmationInput {
   final String requestId;
   final ConfirmationAction action;
-  final String? note; // Nhận xét (tùy chọn với confirmFixed, bắt buộc với rework/reopen)
-  final List<String> imagePaths; // Đường dẫn ảnh đính kèm cục bộ (tối đa 5 ảnh, mỗi ảnh <= 5MB)
+  final String?
+  note; // Nhận xét (tùy chọn với confirmFixed, bắt buộc với rework/reopen)
+  final List<String>
+  imagePaths; // Đường dẫn ảnh đính kèm cục bộ (tối đa 5 ảnh, mỗi ảnh <= 5MB)
 
   const ConfirmationInput({
     required this.requestId,
