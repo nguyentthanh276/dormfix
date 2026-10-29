@@ -163,6 +163,25 @@ void main() {
     });
   });
 
+  testWidgets('loads requests when filter options fail', (tester) async {
+    final repository = _RecordingRepository()..failNextOptions = true;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: AdminRequestsPage(
+          repository: repository,
+          isAdmin: true,
+          onSignOut: () {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('DF000101'), findsOneWidget);
+    expect(find.text('Lá»—i táº£i bá»™ lá»c'), findsOneWidget);
+    expect(repository.listCalls, 1);
+    expect(repository.optionCalls, 1);
+  });
+
   group('DF-045/046/047/048 Admin request actions', () {
     testWidgets('shows only actions allowed by request and student status', (
       tester,
@@ -235,6 +254,7 @@ class _RecordingRepository implements AdminRequestRepository {
   int optionCalls = 0;
   int listCalls = 0;
   bool failNextList = false;
+  bool failNextOptions = false;
   bool returnEmpty = false;
 
   @override
@@ -269,6 +289,10 @@ class _RecordingRepository implements AdminRequestRepository {
   @override
   Future<AdminRequestFilterOptions> fetchFilterOptions() {
     optionCalls++;
+    if (failNextOptions) {
+      failNextOptions = false;
+      throw const AdminRequestFailure('Lá»—i táº£i bá»™ lá»c');
+    }
     return _delegate.fetchFilterOptions();
   }
 
