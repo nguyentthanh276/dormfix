@@ -6,6 +6,8 @@ File `001_schema.sql` tạo 10 bảng nghiệp vụ trong một project Supabase
 
 DF-028/029/030 thêm RPC đọc danh sách tài khoản Admin trong `009_admin_account_list.sql`. Migration này cần triển khai một lần trên project Supabase; không chạy lại sau khi đã áp dụng. Test phân quyền, tìm kiếm và phân trang rollback tại `tests/009_admin_account_list.sql`.
 
+DF-043/044 thêm các RPC Admin chỉ đọc danh sách, bộ lọc và chi tiết yêu cầu trong `010_admin_request_reads.sql`. Migration chỉ thêm function trên schema hiện có, cần triển khai một lần sau khi được duyệt; không chạy lại sau khi đã áp dụng. Test rollback cho quyền Admin, bộ lọc kết hợp, khoảng ngày và dữ liệu chi tiết nằm ở `tests/010_admin_request_reads.sql`.
+
 ## Các quyết định dữ liệu
 
 - Supabase Auth lưu mật khẩu. Một tài khoản Auth liên kết một profile.
@@ -65,3 +67,7 @@ Luồng chính: pending → assigned → in_progress → awaiting_confirmation �
 ## Kiểm tra trước khi chạy migration
 
 Chỉ chạy trên project mới chưa có các object cùng tên. Migration nằm trong transaction; không xóa bảng hay thay dữ liệu cũ. Sau tạo bảng, chưa có quyền ghi từ client và chưa có Storage policy. Chưa có tài khoản demo. Schema đã được xác minh thực thi; các quy tắc nghiệp vụ và quyền truy cập theo từng role cần kiểm thử tiếp với tài khoản demo.
+
+DF-045/046 thêm các RPC ghi Admin cho phân công và từ chối trong `011_admin_request_workflow.sql`. DF-047/048 thêm đổi KTV và xử lý thay Sinh viên đã thu hồi trong `012_admin_request_resolution.sql`. Hai migration chỉ thêm RPC, không thay đổi RPC Sinh viên/KTV hiện có; mỗi thao tác khóa yêu cầu/tài khoản liên quan, kiểm tra lại role/trạng thái, ghi lịch sử trong cùng transaction. Test rollback từng giai đoạn ở `tests/011_admin_request_workflow.sql` và `tests/012_admin_request_resolution.sql`.
+
+Vì chính sách repo không cho phép DROP, các script `rollback/011_disable_admin_request_workflow.sql` và `rollback/012_disable_admin_request_resolution.sql` chỉ thu hồi quyền EXECUTE để vô hiệu hóa API, không xóa function hay dữ liệu. Khi vô hiệu hóa cả hai migration, chạy rollback 012 trước 011.
