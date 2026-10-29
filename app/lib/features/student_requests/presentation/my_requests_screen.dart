@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import '../../../core/models/repair_status.dart';
 import '../../../core/widgets/empty_view.dart';
 import '../../../core/widgets/error_view.dart';
+import '../../student_confirmation/data/confirmation_repository.dart';
+import '../../student_confirmation/presentation/awaiting_confirmation_screen.dart';
+import '../../student_confirmation/presentation/request_confirmation_screen.dart';
 import '../data/request_repository.dart';
 import '../models/repair_request.dart';
 import '../models/request_filter.dart';
@@ -56,22 +59,54 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
     }
   }
 
-  Future<void> _openDetail(String requestId) async {
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute(
-        builder: (_) => RequestDetailScreen(
-          repository: widget.repository,
-          requestId: requestId,
+  Future<void> _openDetail(RepairRequest item) async {
+    if (item.status == RepairStatus.awaitingConfirmation) {
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute(
+          builder: (_) => RequestConfirmationScreen(
+            requestId: item.id,
+            repository: AdapterConfirmationRepository(widget.repository),
+            onConfirmed: _load,
+          ),
         ),
-      ),
-    );
+      );
+    } else {
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute(
+          builder: (_) => RequestDetailScreen(
+            repository: widget.repository,
+            requestId: item.id,
+          ),
+        ),
+      );
+    }
     if (mounted) await _load();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Yêu cầu của tôi')),
+      appBar: AppBar(
+        title: const Text('Yêu cầu của tôi'),
+        actions: [
+          IconButton(
+            tooltip: 'Chờ xác nhận',
+            icon: const Icon(Icons.assignment_turned_in_outlined),
+            onPressed: () async {
+              await Navigator.of(context).push<void>(
+                MaterialPageRoute(
+                  builder: (_) => AwaitingConfirmationScreen(
+                    repository: AdapterConfirmationRepository(
+                      widget.repository,
+                    ),
+                  ),
+                ),
+              );
+              if (mounted) await _load();
+            },
+          ),
+        ],
+      ),
       body: _body(),
     );
   }
@@ -121,8 +156,8 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
               separatorBuilder: (context, index) => const SizedBox(height: 8),
               itemBuilder: (context, index) => RequestCard(
                 request: list[index],
-                // Truyền id sang màn chi tiết; màn đó tự tải dữ liệu theo id.
-                onTap: () => _openDetail(list[index].id),
+                // Mở màn hình xác nhận riêng nếu là awaitingConfirmation, ngược lại mở chi tiết tiến độ
+                onTap: () => _openDetail(list[index]),
               ),
             ),
           ),
