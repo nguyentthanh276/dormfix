@@ -8,6 +8,7 @@ import '../features/auth/presentation/auth_controller.dart';
 import '../features/technician_jobs/data/technician_jobs_repository.dart';
 import '../features/technician_jobs/data/technician_workflow_repository.dart';
 import '../features/profile/data/profile_repository.dart';
+import '../features/admin_accounts/data/admin_accounts_repository.dart';
 import 'startup_page.dart';
 
 class DormFixApp extends StatefulWidget {
@@ -19,6 +20,7 @@ class DormFixApp extends StatefulWidget {
     this.technicianJobsRepository,
     this.technicianWorkflowRepository,
     this.profileRepository,
+    this.adminAccountsRepository,
   });
 
   final bool backendReady;
@@ -27,6 +29,7 @@ class DormFixApp extends StatefulWidget {
   final TechnicianJobsRepository? technicianJobsRepository;
   final TechnicianWorkflowRepository? technicianWorkflowRepository;
   final ProfileRepository? profileRepository;
+  final AdminAccountsRepository? adminAccountsRepository;
 
   @override
   State<DormFixApp> createState() => _DormFixAppState();
@@ -37,6 +40,7 @@ class _DormFixAppState extends State<DormFixApp> {
   late final TechnicianJobsRepository? _technicianJobsRepository;
   late final TechnicianWorkflowRepository? _technicianWorkflowRepository;
   late final ProfileRepository? _profileRepository;
+  late final AdminAccountsRepository? _adminAccountsRepository;
 
   @override
   void initState() {
@@ -69,6 +73,11 @@ class _DormFixAppState extends State<DormFixApp> {
         (widget.backendReady
             ? SupabaseProfileRepository(Supabase.instance.client)
             : null);
+    _adminAccountsRepository =
+        widget.adminAccountsRepository ??
+        (widget.backendReady
+            ? SupabaseAdminAccountsRepository(Supabase.instance.client)
+            : null);
   }
 
   @override
@@ -90,6 +99,7 @@ class _DormFixAppState extends State<DormFixApp> {
       technicianJobsRepository: _technicianJobsRepository,
       technicianWorkflowRepository: _technicianWorkflowRepository,
       profileRepository: _profileRepository,
+      adminAccountsRepository: _adminAccountsRepository,
     ),
   );
 }
