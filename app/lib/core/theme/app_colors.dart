@@ -7,6 +7,6 @@ abstract final class AppColors {
     0xFFD4560C,
   ); // cam đậm: thanh tiêu đề, chữ nhấn
   static const accent = Color(0xFFFF9A3D); // cam sáng
-  static const fieldBg = Color(0xFFFFEFE3); // nền ô nhập liệu
-  static const pageBg = Color(0xFFFAF5F0); // nền trang
+  static const fieldBg = Color(0xFFFBF6F0); // nền ô nhập liệu mềm mại
+  static const pageBg = Color(0xFFF8F5F2); // nền trang sáng ấm dịu mắt
 }

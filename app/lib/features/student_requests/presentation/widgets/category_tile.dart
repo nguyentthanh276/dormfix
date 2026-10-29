@@ -21,9 +21,19 @@ class CategoryTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: selected ? AppColors.primary : Colors.white,
-      borderRadius: BorderRadius.circular(10),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: selected
+              ? AppColors.primary
+              : Colors.black.withValues(alpha: 0.08),
+          width: selected ? 1.5 : 0.8,
+        ),
+      ),
+      elevation: selected ? 2 : 0,
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(12),
         onTap: onTap,
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -40,7 +50,7 @@ class CategoryTile extends StatelessWidget {
               style: TextStyle(
                 fontSize: 12,
                 color: selected ? Colors.white : Colors.black87,
-                fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
               ),
             ),
           ],
