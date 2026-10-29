@@ -158,6 +158,7 @@ class AdminRequestDetail {
     required this.description,
     required this.building,
     required this.studentStatus,
+    this.technicianId,
     required this.attachments,
     required this.results,
     required this.feedback,
@@ -177,6 +178,7 @@ class AdminRequestDetail {
       description: _requiredString(request, 'description'),
       building: _requiredString(request, 'building'),
       studentStatus: _requiredString(student, 'status'),
+      technicianId: _objectOrNull(json['technician'])?['id'] as String?,
       attachments: _objects(json['attachments']),
       results: _objects(json['results']),
       feedback: _objects(json['feedback']),
@@ -189,6 +191,7 @@ class AdminRequestDetail {
   final String description;
   final String building;
   final String studentStatus;
+  final String? technicianId;
   final List<Map<String, dynamic>> attachments;
   final List<Map<String, dynamic>> results;
   final List<Map<String, dynamic>> feedback;
