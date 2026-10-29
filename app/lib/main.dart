@@ -13,7 +13,8 @@ Future<void> main() async {
     backendError =
         'Thiếu hoặc không hợp lệ cấu hình Supabase. '
         'Hãy kiểm tra SUPABASE_URL và SUPABASE_PUBLISHABLE_KEY trong '
-        'config/local.json rồi chạy lại ứng dụng.';
+        'config/local.json. Khi chạy Flutter, hãy truyền '
+        '--dart-define-from-file=config/local.json rồi khởi động lại.';
   } else {
     try {
       await Supabase.initialize(
