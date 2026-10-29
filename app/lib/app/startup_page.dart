@@ -13,6 +13,7 @@ import '../features/technician_jobs/data/technician_workflow_repository.dart';
 import '../features/technician_jobs/presentation/technician_home_page.dart';
 import '../features/profile/data/profile_repository.dart';
 import '../features/admin_accounts/data/admin_accounts_repository.dart';
+import '../features/admin_requests/data/admin_request_repository.dart';
 
 class StartupPage extends StatefulWidget {
   const StartupPage({
@@ -22,6 +23,7 @@ class StartupPage extends StatefulWidget {
     this.technicianWorkflowRepository,
     this.profileRepository,
     this.adminAccountsRepository,
+    this.adminRequestRepository,
   });
 
   final AuthController controller;
@@ -29,6 +31,7 @@ class StartupPage extends StatefulWidget {
   final TechnicianWorkflowRepository? technicianWorkflowRepository;
   final ProfileRepository? profileRepository;
   final AdminAccountsRepository? adminAccountsRepository;
+  final AdminRequestRepository? adminRequestRepository;
 
   @override
   State<StartupPage> createState() => _StartupPageState();
@@ -52,7 +55,8 @@ class _StartupPageState extends State<StartupPage> {
       AuthViewState.authenticated => switch (widget.controller.profile?.role) {
         AppRole.admin => AdminHomePage(
           controller: widget.controller,
-          repository: widget.adminAccountsRepository,
+          accountsRepository: widget.adminAccountsRepository,
+          requestsRepository: widget.adminRequestRepository,
         ),
         AppRole.student => StudentHomePage(
           key: ValueKey('student-${widget.controller.profile?.id}'),
