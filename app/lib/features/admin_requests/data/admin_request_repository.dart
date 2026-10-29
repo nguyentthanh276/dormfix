@@ -193,6 +193,10 @@ class SupabaseAdminRequestRepository implements AdminRequestRepository {
       rethrow;
     } on PostgrestException catch (error) {
       if (_isAccessError(error.code, error.message)) throw _denied;
+      final migrationMessage = _missingMigrationMessage(error);
+      if (migrationMessage != null) {
+        throw AdminRequestFailure(migrationMessage);
+      }
       throw AdminRequestFailure(_workflowError(error.message, failureMessage));
     } on StorageException catch (error) {
       if (_isAccessError(error.statusCode, error.message)) throw _denied;
@@ -214,6 +218,27 @@ class SupabaseAdminRequestRepository implements AdminRequestRepository {
     }
     return session.user.id;
   }
+}
+
+String? _missingMigrationMessage(PostgrestException error) {
+  final message = error.message.toLowerCase();
+  if (error.code != 'PGRST202' &&
+      !message.contains('schema cache') &&
+      !message.contains('could not find the function')) {
+    return null;
+  }
+
+  final migration =
+      message.contains('admin_request_filter_options') ||
+          message.contains('admin_list_requests') ||
+          message.contains('admin_get_request')
+      ? '010_admin_request_reads.sql'
+      : message.contains('admin_request_active_technicians') ||
+            message.contains('admin_assign_request') ||
+            message.contains('admin_reject_request')
+      ? '011_admin_request_workflow.sql'
+      : '012_admin_request_resolution.sql';
+  return 'Backend chưa triển khai RPC quản lý yêu cầu. Hãy áp dụng database/$migration trong Supabase rồi thử lại.';
 }
 
 Map<String, dynamic> _jsonObject(Object? value) {

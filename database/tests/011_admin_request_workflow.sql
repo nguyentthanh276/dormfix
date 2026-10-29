@@ -31,12 +31,13 @@ select f.id, (select id from admin_write_fixture where key='student'),
   (select id from admin_write_fixture where key='room'), 'ADMIN-WRITE-A101', 'Test building',
   (select id from admin_write_fixture where key='category'), 'Admin write test',
   'Fixture '||f.key, 'Fixture description',
-  case f.key when 'pending' then 'pending'::public.repair_status else 'cancelled'::public.repair_status end
+  case when f.key in ('pending', 'rejectable') then 'pending'::public.repair_status
+    else 'cancelled'::public.repair_status end
 from admin_write_fixture f where key in ('pending','cancelled','rejectable');
 
 select set_config('request.jwt.claim.sub', (select id::text from admin_write_fixture where key='admin'), true);
 set local role authenticated;
-do $$ declare v_result jsonb; v_admin uuid := auth.uid(); v_request uuid := (select id from admin_write_fixture where key='pending'); begin
+do $$ declare v_result jsonb; v_admin uuid := auth.uid(); v_request uuid := (select id from admin_write_fixture where key='pending'); v_conflict boolean := false; v_rejected boolean := false; begin
   if not exists (select 1 from jsonb_array_elements(public.admin_request_active_technicians()) as e(item)
       where item->>'id' = (select id::text from admin_write_fixture where key='tech_first_login')) then
     raise exception 'FAIL DF-045: active first-login technician missing';
@@ -56,7 +57,7 @@ do $$ declare v_result jsonb; v_admin uuid := auth.uid(); v_request uuid := (sel
     raise exception 'FAIL DF-045: assignment history missing';
   end if;
   begin
-    declare v_conflict boolean := false;
+    v_conflict := false;
     begin
       perform public.admin_assign_request((select id from admin_write_fixture where key='cancelled'),
         (select id from admin_write_fixture where key='tech_first_login'));
@@ -67,7 +68,7 @@ do $$ declare v_result jsonb; v_admin uuid := auth.uid(); v_request uuid := (sel
     end if;
   end;
   begin
-    declare v_rejected boolean := false;
+    v_rejected := false;
     begin
       perform public.admin_reject_request((select id from admin_write_fixture where key='rejectable'), '   ');
     exception when sqlstate '22023' then v_rejected := true;
@@ -75,7 +76,7 @@ do $$ declare v_result jsonb; v_admin uuid := auth.uid(); v_request uuid := (sel
     if not v_rejected then raise exception 'FAIL DF-046: blank reason accepted'; end if;
   end;
   begin
-    declare v_rejected boolean := false;
+    v_rejected := false;
     begin
       perform public.admin_reject_request((select id from admin_write_fixture where key='rejectable'), 'Lý do kiểm thử');
     exception when sqlstate 'P0001' then v_rejected := true;
@@ -89,7 +90,7 @@ do $$ declare v_result jsonb; v_admin uuid := auth.uid(); v_request uuid := (sel
     end if;
   end;
   begin
-    declare v_rejected boolean := false;
+    v_rejected := false;
     begin
     perform public.admin_reject_request(v_request, '   ');
     exception when sqlstate '22023' then v_rejected := true;
@@ -97,7 +98,7 @@ do $$ declare v_result jsonb; v_admin uuid := auth.uid(); v_request uuid := (sel
     if not v_rejected then raise exception 'FAIL DF-046: blank reason accepted on assigned request'; end if;
   end;
   begin
-    declare v_rejected boolean := false;
+    v_rejected := false;
     begin
       perform public.admin_reject_request(v_request, 'Không tiếp nhận');
     exception when sqlstate 'P0001' then v_rejected := true;

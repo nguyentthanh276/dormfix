@@ -40,6 +40,7 @@ class _AdminRequestsPageState extends State<AdminRequestsPage> {
   bool _hasMore = false;
   int _offset = 0;
   String? _error;
+  String? _optionsError;
 
   @override
   void initState() {
@@ -74,8 +75,19 @@ class _AdminRequestsPageState extends State<AdminRequestsPage> {
       _error = null;
       if (!append) _offset = 0;
     });
+    AdminRequestFilterOptions? options = _options;
+    String? optionsError;
+    if (options == null) {
+      try {
+        options = await widget.repository.fetchFilterOptions();
+      } catch (error) {
+        optionsError = error is AdminRequestFailure
+            ? error.message
+            : 'Không thể tải danh sách bộ lọc. Vui lòng thử lại.';
+      }
+    }
+
     try {
-      final options = _options ?? await widget.repository.fetchFilterOptions();
       final page = await widget.repository.fetchRequests(
         filters: _filters,
         offset: append ? _offset : 0,
@@ -83,7 +95,8 @@ class _AdminRequestsPageState extends State<AdminRequestsPage> {
       );
       if (!mounted) return;
       setState(() {
-        _options = options;
+        _options = options ?? _options;
+        _optionsError = optionsError;
         _hasMore = page.length > _pageSize;
         _requests = append
             ? [..._requests, ...page.take(_pageSize)]
@@ -95,6 +108,7 @@ class _AdminRequestsPageState extends State<AdminRequestsPage> {
       if (!mounted) return;
       setState(() {
         _loading = false;
+        _optionsError = optionsError;
         _error = error is AdminRequestFailure
             ? error.message
             : 'Không thể tải yêu cầu sửa chữa. Vui lòng thử lại.';
@@ -243,6 +257,24 @@ class _AdminRequestsPageState extends State<AdminRequestsPage> {
           style: Theme.of(context).textTheme.titleMedium
               ?.copyWith(fontWeight: FontWeight.w700),
         ),
+        if (_optionsError != null) ...[
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  _optionsError!,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              ),
+              TextButton.icon(
+                onPressed: _loading ? null : _load,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Tải lại bộ lọc'),
+              ),
+            ],
+          ),
+        ],
         const SizedBox(height: 14),
         Wrap(
           spacing: 12,
