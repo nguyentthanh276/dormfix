@@ -67,3 +67,6 @@ Luồng chính: pending → assigned → in_progress → awaiting_confirmation �
 ## Kiểm tra trước khi chạy migration
 
 Chỉ chạy trên project mới chưa có các object cùng tên. Migration nằm trong transaction; không xóa bảng hay thay dữ liệu cũ. Sau tạo bảng, chưa có quyền ghi từ client và chưa có Storage policy. Chưa có tài khoản demo. Schema đã được xác minh thực thi; các quy tắc nghiệp vụ và quyền truy cập theo từng role cần kiểm thử tiếp với tài khoản demo.
+
+
+DF-045/046 thêm các RPC ghi Admin cho phân công và từ chối trong `011_admin_request_workflow.sql`. RPC kiểm tra Admin/trạng thái tại server, khóa dòng, ghi lịch sử trong cùng transaction; không thay đổi RPC Sinh viên/KTV hiện có. Test rollback tại `tests/011_admin_request_workflow.sql`. `rollback/011_disable_admin_request_workflow.sql` thu hồi quyền EXECUTE để vô hiệu hóa API mà không xóa function hay dữ liệu.

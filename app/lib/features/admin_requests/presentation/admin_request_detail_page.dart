@@ -7,6 +7,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/status_chip.dart';
 import '../data/admin_request_repository.dart';
 import '../models/admin_request.dart';
+import '../models/admin_request_transition_rules.dart';
 
 /// DF-043: Admin detail includes room, requester, current handler, results, photos, and audit history.
 class AdminRequestDetailPage extends StatefulWidget {
@@ -27,6 +28,7 @@ class _AdminRequestDetailPageState extends State<AdminRequestDetailPage> {
   AdminRequestDetail? _detail;
   String? _error;
   bool _loading = true;
+  bool _mutating = false;
   final Map<String, Future<Uint8List>> _photos = {};
 
   @override
@@ -104,6 +106,7 @@ class _AdminRequestDetailPageState extends State<AdminRequestDetailPage> {
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(18, 18, 18, 32),
         children: [
+          _adminActions(context, detail),
           _section(
             context,
             title: request.title,
@@ -215,6 +218,179 @@ class _AdminRequestDetailPageState extends State<AdminRequestDetailPage> {
       ),
     );
   }
+
+  // DF-045/046: server RPCs repeat role and state checks before saving.
+  Widget _adminActions(BuildContext context, AdminRequestDetail detail) {
+    final status = detail.request.status;
+    final canAssign = AdminRequestTransitionRules.allows(
+      AdminRequestAdminAction.assign,
+      status,
+    );
+    final canReject = AdminRequestTransitionRules.allows(
+      AdminRequestAdminAction.reject,
+      status,
+    );
+    if (!canAssign && !canReject) return const SizedBox.shrink();
+    return _section(
+      context,
+      title: 'Thao tác quản lý',
+      child: Wrap(
+        spacing: 10,
+        runSpacing: 10,
+        children: [
+          OutlinedButton.icon(
+            onPressed: _mutating ? null : _chooseTechnician,
+            icon: const Icon(Icons.assignment_ind_outlined),
+            label: const Text('Phân công Kỹ thuật viên'),
+          ),
+          OutlinedButton.icon(
+            onPressed: _mutating ? null : _reject,
+            icon: const Icon(Icons.block_outlined),
+            label: const Text('Từ chối yêu cầu'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _chooseTechnician() async {
+    try {
+      final technicians = await widget.repository.fetchActiveTechnicians();
+      if (!mounted) return;
+      if (technicians.isEmpty) {
+        _showMessage('Hiện không có Kỹ thuật viên đang hoạt động.');
+        return;
+      }
+      String? selectedId;
+      final formKey = GlobalKey<FormState>();
+      final selection = await showDialog<String>(
+        context: context,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (context, setDialogState) => AlertDialog(
+            title: const Text('Phân công yêu cầu'),
+            content: Form(
+              key: formKey,
+              child: DropdownButtonFormField<String>(
+                initialValue: selectedId,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Kỹ thuật viên'),
+                items: technicians
+                    .map(
+                      (item) => DropdownMenuItem(
+                        value: item.id,
+                        child: Text(
+                          item.label,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    )
+                    .toList(),
+                validator: (value) =>
+                    value == null ? 'Hãy chọn Kỹ thuật viên.' : null,
+                onChanged: (value) => setDialogState(() => selectedId = value),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Hủy'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  if (formKey.currentState!.validate()) {
+                    Navigator.pop(dialogContext, selectedId);
+                  }
+                },
+                child: const Text('Lưu'),
+              ),
+            ],
+          ),
+        ),
+      );
+      if (selection == null || !mounted) return;
+      await _runMutation(
+        () => widget.repository.assignRequest(widget.requestId, selection),
+        'Đã phân công Kỹ thuật viên.',
+      );
+    } catch (error) {
+      if (mounted) _showFailure(error);
+    }
+  }
+
+  Future<void> _reject() async {
+    final reason = await _askRequiredText('Từ chối yêu cầu', 'Lý do từ chối');
+    if (reason == null) return;
+    await _runMutation(
+      () => widget.repository.rejectRequest(widget.requestId, reason),
+      'Đã từ chối yêu cầu.',
+    );
+  }
+
+  Future<String?> _askRequiredText(String title, String label) async {
+    final controller = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(title),
+        content: Form(
+          key: formKey,
+          child: TextFormField(
+            controller: controller,
+            autofocus: true,
+            minLines: 2,
+            maxLines: 4,
+            decoration: InputDecoration(labelText: '$label (bắt buộc)'),
+            validator: (value) => value == null || value.trim().isEmpty
+                ? 'Vui lòng nhập $label.'
+                : null,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Hủy'),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (formKey.currentState!.validate()) {
+                Navigator.pop(dialogContext, controller.text.trim());
+              }
+            },
+            child: const Text('Xác nhận'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    return result;
+  }
+
+  Future<void> _runMutation(
+    Future<void> Function() action,
+    String success,
+  ) async {
+    setState(() => _mutating = true);
+    try {
+      await action();
+      await _load();
+      if (mounted) _showMessage(success);
+    } catch (error) {
+      if (mounted) _showFailure(error);
+    } finally {
+      if (mounted) setState(() => _mutating = false);
+    }
+  }
+
+  void _showFailure(Object error) => _showMessage(
+    error is AdminRequestFailure
+        ? error.message
+        : 'Không thể lưu thao tác. Vui lòng thử lại.',
+  );
+
+  void _showMessage(String message) => ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(SnackBar(content: Text(message)));
 
   Widget _section(
     BuildContext context, {

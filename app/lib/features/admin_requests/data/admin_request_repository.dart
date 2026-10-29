@@ -7,6 +7,8 @@ import '../models/admin_request.dart';
 abstract interface class AdminRequestRepository {
   Future<AdminRequestFilterOptions> fetchFilterOptions();
 
+  Future<List<AdminRequestOption>> fetchActiveTechnicians();
+
   Future<List<AdminRequestSummary>> fetchRequests({
     required AdminRequestFilters filters,
     required int offset,
@@ -19,6 +21,10 @@ abstract interface class AdminRequestRepository {
     String requestId,
     Map<String, dynamic> attachment,
   );
+
+  Future<void> assignRequest(String requestId, String technicianId);
+
+  Future<void> rejectRequest(String requestId, String reason);
 }
 
 class AdminRequestFailure implements Exception {
@@ -50,6 +56,34 @@ class SupabaseAdminRequestRepository implements AdminRequestRepository {
       Map<String, dynamic>.from(result),
     );
   }, 'Không thể tải danh sách bộ lọc. Vui lòng thử lại.');
+
+  @override
+  Future<List<AdminRequestOption>> fetchActiveTechnicians() => _read(() async {
+    final result = await _client.rpc('admin_request_active_technicians');
+    if (result is! List) {
+      throw const FormatException('Expected active technicians.');
+    }
+    return List.unmodifiable(
+      result.map((item) => AdminRequestOption.fromJson(_jsonObject(item))),
+    );
+  }, 'Không thể tải danh sách Kỹ thuật viên. Vui lòng thử lại.');
+
+  @override
+  Future<void> assignRequest(String requestId, String technicianId) => _mutate(
+    'admin_assign_request',
+    {'p_request_id': requestId, 'p_technician_id': technicianId},
+  );
+
+  @override
+  Future<void> rejectRequest(String requestId, String reason) => _mutate(
+    'admin_reject_request',
+    {'p_request_id': requestId, 'p_reason': reason},
+  );
+
+  Future<void> _mutate(String function, Map<String, dynamic> params) =>
+      _read(() async {
+        await _client.rpc(function, params: params);
+      }, 'Không thể lưu thao tác. Vui lòng tải lại yêu cầu.');
 
   @override
   Future<List<AdminRequestSummary>> fetchRequests({
@@ -122,7 +156,7 @@ class SupabaseAdminRequestRepository implements AdminRequestRepository {
       rethrow;
     } on PostgrestException catch (error) {
       if (_isAccessError(error.code, error.message)) throw _denied;
-      throw AdminRequestFailure(failureMessage);
+      throw AdminRequestFailure(_workflowError(error.message, failureMessage));
     } on StorageException catch (error) {
       if (_isAccessError(error.statusCode, error.message)) throw _denied;
       throw AdminRequestFailure(failureMessage);
@@ -175,4 +209,16 @@ bool _isAccessError(String? code, String message) {
   }
   final lowerMessage = message.toLowerCase();
   return lowerMessage.contains('jwt') && lowerMessage.contains('expired');
+}
+
+String _workflowError(String message, String fallback) {
+  if (message.startsWith('Chỉ ') ||
+      message.startsWith('Yêu cầu ') ||
+      message.startsWith('Không thể ') ||
+      message.startsWith('Không tìm thấy ') ||
+      message.startsWith('Kỹ thuật viên ') ||
+      message.startsWith('Vui lòng ')) {
+    return message;
+  }
+  return fallback;
 }
