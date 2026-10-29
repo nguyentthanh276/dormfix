@@ -3,12 +3,13 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/theme/app_theme.dart';
+import '../features/admin_accounts/data/admin_accounts_repository.dart';
+import '../features/admin_requests/data/admin_request_repository.dart';
 import '../features/auth/data/auth_repository.dart';
 import '../features/auth/presentation/auth_controller.dart';
+import '../features/profile/data/profile_repository.dart';
 import '../features/technician_jobs/data/technician_jobs_repository.dart';
 import '../features/technician_jobs/data/technician_workflow_repository.dart';
-import '../features/profile/data/profile_repository.dart';
-import '../features/admin_accounts/data/admin_accounts_repository.dart';
 import 'startup_page.dart';
 
 class DormFixApp extends StatefulWidget {
@@ -21,6 +22,7 @@ class DormFixApp extends StatefulWidget {
     this.technicianWorkflowRepository,
     this.profileRepository,
     this.adminAccountsRepository,
+    this.adminRequestRepository,
   });
 
   final bool backendReady;
@@ -30,6 +32,7 @@ class DormFixApp extends StatefulWidget {
   final TechnicianWorkflowRepository? technicianWorkflowRepository;
   final ProfileRepository? profileRepository;
   final AdminAccountsRepository? adminAccountsRepository;
+  final AdminRequestRepository? adminRequestRepository;
 
   @override
   State<DormFixApp> createState() => _DormFixAppState();
@@ -41,6 +44,7 @@ class _DormFixAppState extends State<DormFixApp> {
   late final TechnicianWorkflowRepository? _technicianWorkflowRepository;
   late final ProfileRepository? _profileRepository;
   late final AdminAccountsRepository? _adminAccountsRepository;
+  late final AdminRequestRepository? _adminRequestRepository;
 
   @override
   void initState() {
@@ -78,6 +82,11 @@ class _DormFixAppState extends State<DormFixApp> {
         (widget.backendReady
             ? SupabaseAdminAccountsRepository(Supabase.instance.client)
             : null);
+    _adminRequestRepository =
+        widget.adminRequestRepository ??
+        (widget.backendReady
+            ? SupabaseAdminRequestRepository(Supabase.instance.client)
+            : null);
   }
 
   @override
@@ -100,6 +109,7 @@ class _DormFixAppState extends State<DormFixApp> {
       technicianWorkflowRepository: _technicianWorkflowRepository,
       profileRepository: _profileRepository,
       adminAccountsRepository: _adminAccountsRepository,
+      adminRequestRepository: _adminRequestRepository,
     ),
   );
 }

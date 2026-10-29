@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:dormfix/app/dormfix_app.dart';
 import 'package:dormfix/core/models/app_role.dart';
 import 'package:dormfix/features/admin_accounts/data/mock_admin_accounts_repository.dart';
+import 'package:dormfix/features/admin_requests/data/mock_admin_request_repository.dart';
 import 'package:dormfix/features/auth/data/auth_repository.dart';
 import 'package:dormfix/features/auth/models/user_profile.dart';
 import 'package:dormfix/features/auth/presentation/auth_controller.dart';
@@ -253,6 +254,7 @@ void main() {
           DormFixApp(
             authRepository: repository,
             adminAccountsRepository: const MockAdminAccountsRepository(),
+            adminRequestRepository: const MockAdminRequestRepository(),
           ),
         );
         await tester.pumpAndSettle();
@@ -272,6 +274,13 @@ void main() {
         }
         expect(find.text(_homeTitle(role)), findsOneWidget);
         if (role == AppRole.admin) {
+          await tester.tap(find.byIcon(Icons.home_repair_service_outlined));
+          await tester.pumpAndSettle();
+          expect(find.text('DF000101'), findsOneWidget);
+          await tester.tap(find.byType(BackButton));
+          await tester.pumpAndSettle();
+          expect(find.text(_homeTitle(role)), findsOneWidget);
+
           await tester.tap(find.byIcon(Icons.manage_accounts_outlined));
           await tester.pumpAndSettle();
           expect(find.text('SV001'), findsOneWidget);
