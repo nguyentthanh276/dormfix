@@ -5,6 +5,7 @@ import 'package:dormfix/features/admin_requests/data/admin_request_repository.da
 import 'package:dormfix/features/admin_requests/data/mock_admin_request_repository.dart';
 import 'package:dormfix/features/admin_requests/models/admin_request.dart';
 import 'package:dormfix/features/admin_requests/presentation/admin_requests_page.dart';
+import 'package:dormfix/features/admin_requests/presentation/admin_request_detail_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -98,6 +99,11 @@ void main() {
       await tester.tap(find.text('DF000105'));
       await tester.pumpAndSettle();
 
+      await tester.scrollUntilVisible(
+        find.text('Mô tả sự cố'),
+        250,
+        scrollable: find.byType(Scrollable).first,
+      );
       expect(find.text('Mô tả sự cố'), findsOneWidget);
       await tester.scrollUntilVisible(
         find.text('Yêu cầu sửa lại'),
@@ -156,6 +162,43 @@ void main() {
       expect(find.text('Chưa có yêu cầu sửa chữa nào.'), findsOneWidget);
     });
   });
+
+  group('DF-045/046 Admin request actions', () {
+    testWidgets('shows assignment and rejection for a pending request', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AdminRequestDetailPage(
+            repository: const MockAdminRequestRepository(),
+            requestId: 'demo-1',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Phân công Kỹ thuật viên'), findsOneWidget);
+      expect(find.text('Từ chối yêu cầu'), findsOneWidget);
+    });
+
+    testWidgets('requires a reason before opening reject mutation', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AdminRequestDetailPage(
+            repository: const MockAdminRequestRepository(),
+            requestId: 'demo-1',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Từ chối yêu cầu'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Xác nhận'));
+      await tester.pumpAndSettle();
+      expect(find.text('Vui lòng nhập Lý do từ chối.'), findsOneWidget);
+    });
+  });
 }
 
 class _RecordingRepository implements AdminRequestRepository {
@@ -164,6 +207,18 @@ class _RecordingRepository implements AdminRequestRepository {
   int listCalls = 0;
   bool failNextList = false;
   bool returnEmpty = false;
+
+  @override
+  Future<List<AdminRequestOption>> fetchActiveTechnicians() =>
+      _delegate.fetchActiveTechnicians();
+
+  @override
+  Future<void> assignRequest(String requestId, String technicianId) =>
+      _delegate.assignRequest(requestId, technicianId);
+
+  @override
+  Future<void> rejectRequest(String requestId, String reason) =>
+      _delegate.rejectRequest(requestId, reason);
 
   @override
   Future<AdminRequestFilterOptions> fetchFilterOptions() {

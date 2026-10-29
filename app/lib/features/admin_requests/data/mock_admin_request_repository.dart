@@ -140,6 +140,18 @@ class MockAdminRequestRepository implements AdminRequestRepository {
       );
 
   @override
+  Future<List<AdminRequestOption>> fetchActiveTechnicians() async => const [
+    AdminRequestOption(id: 'tech-active', label: 'Lê Cường'),
+    AdminRequestOption(id: 'tech-first-login', label: 'Trần Minh'),
+  ];
+
+  @override
+  Future<void> assignRequest(String requestId, String technicianId) async {}
+
+  @override
+  Future<void> rejectRequest(String requestId, String reason) async {}
+
+  @override
   Future<List<AdminRequestSummary>> fetchRequests({
     required AdminRequestFilters filters,
     required int offset,
@@ -208,7 +220,12 @@ class MockAdminRequestRepository implements AdminRequestRepository {
       },
       'technician': request.technicianName == null
           ? null
-          : {'full_name': request.technicianName},
+          : {
+              'id': request.technicianName == 'VĂµ Long'
+                  ? 'tech-locked'
+                  : 'tech-active',
+              'full_name': request.technicianName,
+            },
       'attachments': [
         {
           'id': 'attachment-${request.id}',
