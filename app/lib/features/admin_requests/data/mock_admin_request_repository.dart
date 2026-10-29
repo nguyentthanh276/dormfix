@@ -152,6 +152,22 @@ class MockAdminRequestRepository implements AdminRequestRepository {
   Future<void> rejectRequest(String requestId, String reason) async {}
 
   @override
+  Future<void> transferRequest(
+    String requestId,
+    String technicianId,
+    String reason,
+  ) async {}
+
+  @override
+  Future<void> confirmForRevokedStudent(String requestId, String note) async {}
+
+  @override
+  Future<void> requestReworkForRevokedStudent(
+    String requestId,
+    String reason,
+  ) async {}
+
+  @override
   Future<List<AdminRequestSummary>> fetchRequests({
     required AdminRequestFilters filters,
     required int offset,

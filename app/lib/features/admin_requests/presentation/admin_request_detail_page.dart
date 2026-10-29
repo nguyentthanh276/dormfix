@@ -219,41 +219,70 @@ class _AdminRequestDetailPageState extends State<AdminRequestDetailPage> {
     );
   }
 
-  // DF-045/046: server RPCs repeat role and state checks before saving.
+  // DF-045/046/047/048: the UI hides invalid actions; RPCs recheck state and role.
   Widget _adminActions(BuildContext context, AdminRequestDetail detail) {
     final status = detail.request.status;
-    final canAssign = AdminRequestTransitionRules.allows(
-      AdminRequestAdminAction.assign,
-      status,
-    );
-    final canReject = AdminRequestTransitionRules.allows(
-      AdminRequestAdminAction.reject,
-      status,
-    );
-    if (!canAssign && !canReject) return const SizedBox.shrink();
-    return _section(
-      context,
-      title: 'Thao tác quản lý',
-      child: Wrap(
-        spacing: 10,
-        runSpacing: 10,
-        children: [
+    bool allows(AdminRequestAdminAction action) =>
+        AdminRequestTransitionRules.allows(
+          action,
+          status,
+          studentAccountStatus: detail.studentStatus,
+        );
+    final actions = <Widget>[];
+    if (allows(AdminRequestAdminAction.assign) &&
+        allows(AdminRequestAdminAction.reject)) {
+      actions
+        ..add(
           OutlinedButton.icon(
-            onPressed: _mutating ? null : _chooseTechnician,
+            onPressed: _mutating
+                ? null
+                : () => _chooseTechnician(transfer: false),
             icon: const Icon(Icons.assignment_ind_outlined),
             label: const Text('Phân công Kỹ thuật viên'),
           ),
+        )
+        ..add(
           OutlinedButton.icon(
             onPressed: _mutating ? null : _reject,
             icon: const Icon(Icons.block_outlined),
             label: const Text('Từ chối yêu cầu'),
           ),
-        ],
-      ),
+        );
+    } else if (allows(AdminRequestAdminAction.transfer)) {
+      actions.add(
+        OutlinedButton.icon(
+          onPressed: _mutating ? null : () => _chooseTechnician(transfer: true),
+          icon: const Icon(Icons.swap_horiz),
+          label: const Text('Đổi Kỹ thuật viên'),
+        ),
+      );
+    } else if (allows(AdminRequestAdminAction.confirmForRevokedStudent) &&
+        allows(AdminRequestAdminAction.requestReworkForRevokedStudent)) {
+      actions
+        ..add(
+          FilledButton.icon(
+            onPressed: _mutating ? null : _confirmForRevokedStudent,
+            icon: const Icon(Icons.check_circle_outline),
+            label: const Text('Xác nhận hoàn tất'),
+          ),
+        )
+        ..add(
+          OutlinedButton.icon(
+            onPressed: _mutating ? null : _requestReworkForRevokedStudent,
+            icon: const Icon(Icons.replay),
+            label: const Text('Yêu cầu sửa lại'),
+          ),
+        );
+    }
+    if (actions.isEmpty) return const SizedBox.shrink();
+    return _section(
+      context,
+      title: 'Thao tác quản lý',
+      child: Wrap(spacing: 10, runSpacing: 10, children: actions),
     );
   }
 
-  Future<void> _chooseTechnician() async {
+  Future<void> _chooseTechnician({required bool transfer}) async {
     try {
       final technicians = await widget.repository.fetchActiveTechnicians();
       if (!mounted) return;
@@ -261,33 +290,64 @@ class _AdminRequestDetailPageState extends State<AdminRequestDetailPage> {
         _showMessage('Hiện không có Kỹ thuật viên đang hoạt động.');
         return;
       }
+      final eligibleTechnicians = technicians
+          .where((item) => item.id != _detail?.technicianId)
+          .toList(growable: false);
+      if (eligibleTechnicians.isEmpty) {
+        _showMessage('Không có Kỹ thuật viên đang hoạt động nào khác để chọn.');
+        return;
+      }
       String? selectedId;
+      final reasonController = TextEditingController();
       final formKey = GlobalKey<FormState>();
-      final selection = await showDialog<String>(
+      final selection = await showDialog<Map<String, String>>(
         context: context,
         builder: (dialogContext) => StatefulBuilder(
           builder: (context, setDialogState) => AlertDialog(
-            title: const Text('Phân công yêu cầu'),
+            title: Text(transfer ? 'Đổi Kỹ thuật viên' : 'Phân công yêu cầu'),
             content: Form(
               key: formKey,
-              child: DropdownButtonFormField<String>(
-                initialValue: selectedId,
-                isExpanded: true,
-                decoration: const InputDecoration(labelText: 'Kỹ thuật viên'),
-                items: technicians
-                    .map(
-                      (item) => DropdownMenuItem(
-                        value: item.id,
-                        child: Text(
-                          item.label,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedId,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Kỹ thuật viên',
+                    ),
+                    items: eligibleTechnicians
+                        .map(
+                          (item) => DropdownMenuItem(
+                            value: item.id,
+                            child: Text(
+                              item.label,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    validator: (value) =>
+                        value == null ? 'Hãy chọn Kỹ thuật viên.' : null,
+                    onChanged: (value) =>
+                        setDialogState(() => selectedId = value),
+                  ),
+                  if (transfer) ...[
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: reasonController,
+                      decoration: const InputDecoration(
+                        labelText: 'Lý do đổi (bắt buộc)',
                       ),
-                    )
-                    .toList(),
-                validator: (value) =>
-                    value == null ? 'Hãy chọn Kỹ thuật viên.' : null,
-                onChanged: (value) => setDialogState(() => selectedId = value),
+                      minLines: 2,
+                      maxLines: 4,
+                      validator: (value) =>
+                          value == null || value.trim().isEmpty
+                          ? 'Vui lòng nhập lý do đổi.'
+                          : null,
+                    ),
+                  ],
+                ],
               ),
             ),
             actions: [
@@ -298,7 +358,10 @@ class _AdminRequestDetailPageState extends State<AdminRequestDetailPage> {
               FilledButton(
                 onPressed: () {
                   if (formKey.currentState!.validate()) {
-                    Navigator.pop(dialogContext, selectedId);
+                    Navigator.pop(dialogContext, {
+                      'technicianId': selectedId!,
+                      'reason': reasonController.text.trim(),
+                    });
                   }
                 },
                 child: const Text('Lưu'),
@@ -307,10 +370,15 @@ class _AdminRequestDetailPageState extends State<AdminRequestDetailPage> {
           ),
         ),
       );
+      reasonController.dispose();
       if (selection == null || !mounted) return;
+      final id = selection['technicianId']!;
+      final reason = selection['reason']!;
       await _runMutation(
-        () => widget.repository.assignRequest(widget.requestId, selection),
-        'Đã phân công Kỹ thuật viên.',
+        () => transfer
+            ? widget.repository.transferRequest(widget.requestId, id, reason)
+            : widget.repository.assignRequest(widget.requestId, id),
+        transfer ? 'Đã đổi Kỹ thuật viên.' : 'Đã phân công Kỹ thuật viên.',
       );
     } catch (error) {
       if (mounted) _showFailure(error);
@@ -323,6 +391,33 @@ class _AdminRequestDetailPageState extends State<AdminRequestDetailPage> {
     await _runMutation(
       () => widget.repository.rejectRequest(widget.requestId, reason),
       'Đã từ chối yêu cầu.',
+    );
+  }
+
+  Future<void> _confirmForRevokedStudent() async {
+    final note = await _askRequiredText(
+      'Xác nhận hoàn tất thay Sinh viên',
+      'Ghi chú xác nhận',
+    );
+    if (note == null) return;
+    await _runMutation(
+      () => widget.repository.confirmForRevokedStudent(widget.requestId, note),
+      'Đã xác nhận hoàn tất yêu cầu.',
+    );
+  }
+
+  Future<void> _requestReworkForRevokedStudent() async {
+    final reason = await _askRequiredText(
+      'Yêu cầu sửa lại',
+      'Lý do yêu cầu sửa lại',
+    );
+    if (reason == null) return;
+    await _runMutation(
+      () => widget.repository.requestReworkForRevokedStudent(
+        widget.requestId,
+        reason,
+      ),
+      'Đã chuyển yêu cầu sang Chờ xử lý lại.',
     );
   }
 

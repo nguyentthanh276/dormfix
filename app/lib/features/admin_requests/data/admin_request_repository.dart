@@ -25,6 +25,16 @@ abstract interface class AdminRequestRepository {
   Future<void> assignRequest(String requestId, String technicianId);
 
   Future<void> rejectRequest(String requestId, String reason);
+
+  Future<void> transferRequest(
+    String requestId,
+    String technicianId,
+    String reason,
+  );
+
+  Future<void> confirmForRevokedStudent(String requestId, String note);
+
+  Future<void> requestReworkForRevokedStudent(String requestId, String reason);
 }
 
 class AdminRequestFailure implements Exception {
@@ -79,6 +89,33 @@ class SupabaseAdminRequestRepository implements AdminRequestRepository {
     'admin_reject_request',
     {'p_request_id': requestId, 'p_reason': reason},
   );
+
+  @override
+  Future<void> transferRequest(
+    String requestId,
+    String technicianId,
+    String reason,
+  ) => _mutate('admin_transfer_request', {
+    'p_request_id': requestId,
+    'p_new_technician_id': technicianId,
+    'p_reason': reason,
+  });
+
+  @override
+  Future<void> confirmForRevokedStudent(String requestId, String note) =>
+      _mutate('admin_confirm_revoked_student_request', {
+        'p_request_id': requestId,
+        'p_note': note,
+      });
+
+  @override
+  Future<void> requestReworkForRevokedStudent(
+    String requestId,
+    String reason,
+  ) => _mutate('admin_request_rework_revoked_student_request', {
+    'p_request_id': requestId,
+    'p_reason': reason,
+  });
 
   Future<void> _mutate(String function, Map<String, dynamic> params) =>
       _read(() async {

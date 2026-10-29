@@ -163,14 +163,16 @@ void main() {
     });
   });
 
-  group('DF-045/046 Admin request actions', () {
-    testWidgets('shows assignment and rejection for a pending request', (
+  group('DF-045/046/047/048 Admin request actions', () {
+    testWidgets('shows only actions allowed by request and student status', (
       tester,
     ) async {
+      const repository = MockAdminRequestRepository();
       await tester.pumpWidget(
         MaterialApp(
           home: AdminRequestDetailPage(
-            repository: const MockAdminRequestRepository(),
+            key: const ValueKey('demo-1'),
+            repository: repository,
             requestId: 'demo-1',
           ),
         ),
@@ -178,6 +180,33 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Phân công Kỹ thuật viên'), findsOneWidget);
       expect(find.text('Từ chối yêu cầu'), findsOneWidget);
+      expect(find.text('Đổi Kỹ thuật viên'), findsNothing);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AdminRequestDetailPage(
+            key: const ValueKey('demo-3'),
+            repository: repository,
+            requestId: 'demo-3',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Đổi Kỹ thuật viên'), findsOneWidget);
+      expect(find.text('Xác nhận hoàn tất'), findsNothing);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AdminRequestDetailPage(
+            key: const ValueKey('demo-4'),
+            repository: repository,
+            requestId: 'demo-4',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Xác nhận hoàn tất'), findsOneWidget);
+      expect(find.text('Yêu cầu sửa lại'), findsOneWidget);
     });
 
     testWidgets('requires a reason before opening reject mutation', (
@@ -219,6 +248,23 @@ class _RecordingRepository implements AdminRequestRepository {
   @override
   Future<void> rejectRequest(String requestId, String reason) =>
       _delegate.rejectRequest(requestId, reason);
+
+  @override
+  Future<void> transferRequest(
+    String requestId,
+    String technicianId,
+    String reason,
+  ) => _delegate.transferRequest(requestId, technicianId, reason);
+
+  @override
+  Future<void> confirmForRevokedStudent(String requestId, String note) =>
+      _delegate.confirmForRevokedStudent(requestId, note);
+
+  @override
+  Future<void> requestReworkForRevokedStudent(
+    String requestId,
+    String reason,
+  ) => _delegate.requestReworkForRevokedStudent(requestId, reason);
 
   @override
   Future<AdminRequestFilterOptions> fetchFilterOptions() {
