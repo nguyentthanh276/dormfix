@@ -397,6 +397,30 @@ class _CategoryListScreenState extends State<CategoryListScreen> {
                               ),
                               onPressed: () => _showAddEditDialog(cat),
                             ),
+
+                            // Công tắc Bật / Tắt trạng thái
+                            Switch.adaptive(
+                              activeTrackColor: primaryColor,
+                              value: cat.isActive,
+                              onChanged: (val) async {
+                                try {
+                                  await _repo.toggleCategoryStatus(
+                                    cat.id,
+                                    cat.isActive,
+                                  );
+                                  _load();
+                                } catch (e) {
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text('Lỗi: ${e.toString()}'),
+                                        behavior: SnackBarBehavior.floating,
+                                      ),
+                                    );
+                                  }
+                                }
+                              },
+                            ),
                           ],
                         ),
                       );

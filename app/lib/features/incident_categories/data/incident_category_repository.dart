@@ -165,4 +165,47 @@ class IncidentCategoryRepository {
       rethrow;
     }
   }
+
+  /// DF-050: Ngừng sử dụng / Kích hoạt lại loại sự cố
+  Future<void> toggleCategoryStatus(String id, bool currentStatus) async {
+    final client = _client;
+    if (client == null) {
+      final index = _fallbackCategories.indexWhere((c) => c.id == id);
+      if (index != -1) {
+        final old = _fallbackCategories[index];
+        _fallbackCategories[index] = IncidentCategoryItem(
+          id: old.id,
+          name: old.name,
+          isActive: !currentStatus,
+          createdAt: old.createdAt,
+        );
+      }
+      return;
+    }
+
+    try {
+      await client
+          .from('incident_categories')
+          .update({
+            'is_active': !currentStatus,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', id);
+    } on PostgrestException catch (e) {
+      if (e.code == '42501') {
+        final index = _fallbackCategories.indexWhere((c) => c.id == id);
+        if (index != -1) {
+          final old = _fallbackCategories[index];
+          _fallbackCategories[index] = IncidentCategoryItem(
+            id: old.id,
+            name: old.name,
+            isActive: !currentStatus,
+            createdAt: old.createdAt,
+          );
+        }
+        return;
+      }
+      rethrow;
+    }
+  }
 }
