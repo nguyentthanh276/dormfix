@@ -2,6 +2,7 @@
 enum ConfirmationAction {
   confirmFixed, // DF-014: Xác nhận đã khắc phục (Hoàn tất)
   requestRework, // DF-015: Yêu cầu thợ sửa lại
+  reopenRequest, // DF-016: Mở lại đơn đã hoàn tất
 }
 
 /// Dữ liệu đầu vào khi sinh viên xác nhận hoặc phản hồi
