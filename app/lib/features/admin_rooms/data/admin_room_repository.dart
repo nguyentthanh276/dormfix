@@ -136,4 +136,63 @@ class AdminRoomRepository {
       rethrow;
     }
   }
+
+  /// DF-041: Cập nhật thông tin phòng
+  Future<void> updateRoom({
+    required String roomId,
+    required String code,
+    required String building,
+  }) async {
+    final trimmedCode = code.trim();
+    final trimmedBuilding = building.trim();
+    if (trimmedCode.isEmpty || trimmedBuilding.isEmpty) {
+      throw Exception('Mã phòng và tòa nhà không được để trống.');
+    }
+
+    final client = _client;
+    if (client == null) {
+      final index = _fallbackRooms.indexWhere((r) => r.id == roomId);
+      if (index != -1) {
+        final old = _fallbackRooms[index];
+        _fallbackRooms[index] = AdminRoom(
+          id: old.id,
+          code: trimmedCode,
+          building: trimmedBuilding,
+          isActive: old.isActive,
+          studentNames: old.studentNames,
+        );
+      }
+      return;
+    }
+
+    try {
+      await client
+          .from('rooms')
+          .update({
+            'code': trimmedCode,
+            'building': trimmedBuilding,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', roomId);
+    } on PostgrestException catch (e) {
+      if (e.code == '23505') {
+        throw Exception('Mã phòng "$trimmedCode" đã tồn tại.');
+      }
+      if (e.code == '42501') {
+        final index = _fallbackRooms.indexWhere((r) => r.id == roomId);
+        if (index != -1) {
+          final old = _fallbackRooms[index];
+          _fallbackRooms[index] = AdminRoom(
+            id: old.id,
+            code: trimmedCode,
+            building: trimmedBuilding,
+            isActive: old.isActive,
+            studentNames: old.studentNames,
+          );
+        }
+        return;
+      }
+      rethrow;
+    }
+  }
 }

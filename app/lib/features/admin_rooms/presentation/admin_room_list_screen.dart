@@ -401,6 +401,34 @@ class _AdminRoomListScreenState extends State<AdminRoomListScreen> {
                   ],
                 ),
               ),
+
+              // Menu thao tác
+              PopupMenuButton<String>(
+                icon: const Icon(
+                  Icons.more_vert_rounded,
+                  color: Color(0xFF64748B),
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                onSelected: (val) {
+                  if (val == 'edit') {
+                    _openEditRoomDialog(room);
+                  }
+                },
+                itemBuilder: (ctx) => [
+                  const PopupMenuItem(
+                    value: 'edit',
+                    child: Row(
+                      children: [
+                        Icon(Icons.edit_outlined, size: 18, color: Colors.blue),
+                        SizedBox(width: 10),
+                        Text('Sửa thông tin'),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
         ),
@@ -472,6 +500,78 @@ class _AdminRoomListScreenState extends State<AdminRoomListScreen> {
               }
             },
             child: const Text('Lưu'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _openEditRoomDialog(AdminRoom room) {
+    final codeCtrl = TextEditingController(text: room.code);
+    final bldCtrl = TextEditingController(text: room.building);
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Cập nhật phòng',
+          style: TextStyle(fontWeight: FontWeight.w700),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: codeCtrl,
+              decoration: InputDecoration(
+                labelText: 'Mã phòng *',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: bldCtrl,
+              decoration: InputDecoration(
+                labelText: 'Tòa nhà *',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Hủy'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFEA580C),
+            ),
+            onPressed: () async {
+              final code = codeCtrl.text.trim();
+              final bld = bldCtrl.text.trim();
+              if (code.isEmpty || bld.isEmpty) {
+                _showToast('Vui lòng điền đủ thông tin', isError: true);
+                return;
+              }
+              Navigator.pop(ctx);
+              try {
+                await _repo.updateRoom(
+                  roomId: room.id,
+                  code: code,
+                  building: bld,
+                );
+                _showToast('Cập nhật phòng thành công!');
+                _fetchRooms();
+              } catch (e) {
+                _showToast('$e', isError: true);
+              }
+            },
+            child: const Text('Cập nhật'),
           ),
         ],
       ),
