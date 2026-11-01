@@ -105,6 +105,17 @@ class _AdminRoomListScreenState extends State<AdminRoomListScreen> {
           ),
         ],
       ),
+      floatingActionButton: FloatingActionButton.extended(
+        backgroundColor: const Color(0xFFEA580C),
+        foregroundColor: Colors.white,
+        elevation: 3,
+        icon: const Icon(Icons.add_rounded),
+        label: const Text(
+          'Thêm phòng',
+          style: TextStyle(fontWeight: FontWeight.w600),
+        ),
+        onPressed: _openAddRoomDialog,
+      ),
       body: Column(
         children: [
           // Khu vực tìm kiếm & Bộ lọc tòa
@@ -393,6 +404,76 @@ class _AdminRoomListScreenState extends State<AdminRoomListScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  void _openAddRoomDialog() {
+    final codeCtrl = TextEditingController();
+    final bldCtrl = TextEditingController(text: 'Tòa A');
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Thêm phòng mới',
+          style: TextStyle(fontWeight: FontWeight.w700),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: codeCtrl,
+              decoration: InputDecoration(
+                labelText: 'Mã phòng *',
+                hintText: 'VD: A1-101',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: bldCtrl,
+              decoration: InputDecoration(
+                labelText: 'Tòa nhà *',
+                hintText: 'VD: Tòa A',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Hủy'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFEA580C),
+            ),
+            onPressed: () async {
+              final code = codeCtrl.text.trim();
+              final bld = bldCtrl.text.trim();
+              if (code.isEmpty || bld.isEmpty) {
+                _showToast('Vui lòng điền đủ thông tin', isError: true);
+                return;
+              }
+              Navigator.pop(ctx);
+              try {
+                await _repo.addRoom(code: code, building: bld);
+                _showToast('Thêm phòng $code thành công!');
+                _fetchRooms();
+              } catch (e) {
+                _showToast('$e', isError: true);
+              }
+            },
+            child: const Text('Lưu'),
+          ),
+        ],
       ),
     );
   }
