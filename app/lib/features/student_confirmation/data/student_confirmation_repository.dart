@@ -161,4 +161,87 @@ class StudentConfirmationRepository {
       'note': trimmedReason,
     });
   }
+
+  /// [DF-016] Mở lại yêu cầu Hoàn tất (Sprint 4)
+  Future<void> reopenRequest({
+    required String requestId,
+    required String requestRoomId,
+    required String currentStudentRoomId,
+    required String reason,
+    List<String> imagePaths = const [],
+  }) async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) {
+      throw Exception('Chưa đăng nhập.');
+    }
+
+    // Ràng buộc: Phòng của đơn phải trùng phòng hiện tại của SV
+    if (requestRoomId != currentStudentRoomId) {
+      throw Exception(
+        'Chỉ được mở lại yêu cầu thuộc phòng bạn đang ở hiện tại.',
+      );
+    }
+
+    final trimmedReason = reason.trim();
+    if (trimmedReason.isEmpty) {
+      throw Exception('Lý do mở lại không được để trống.');
+    }
+    if (imagePaths.length > 5) {
+      throw Exception('Tối đa 5 hình ảnh.');
+    }
+
+    // 1. Chuyển trạng thái sang pending, BỎ phân công hiện tại (assigned_technician_id = null)
+    final res = await _client
+        .from('repair_requests')
+        .update({
+          'status': 'pending',
+          'assigned_technician_id': null,
+          'completed_at': null,
+          'updated_at': DateTime.now().toIso8601String(),
+        })
+        .match({'id': requestId, 'status': 'completed', 'student_id': userId})
+        .select('id');
+
+    if ((res as List).isEmpty) {
+      throw Exception(
+        'Không thể mở lại: Đơn không ở trạng thái Hoàn tất hoặc bạn không có quyền.',
+      );
+    }
+
+    // 2. Thêm bản ghi phản hồi (kind: 'reopen')
+    final feedbackRes = await _client
+        .from('request_feedback')
+        .insert({
+          'request_id': requestId,
+          'kind': 'reopen',
+          'reason': trimmedReason,
+          'submitted_by': userId,
+        })
+        .select('id')
+        .single();
+
+    final feedbackId = feedbackRes['id'] as String;
+
+    // 3. Tải ảnh (nếu có)
+    if (imagePaths.isNotEmpty) {
+      await _uploadAttachments(
+        requestId: requestId,
+        feedbackId: feedbackId,
+        imagePaths: imagePaths,
+        userId: userId,
+      );
+    }
+
+    // 4. Lưu vết lịch sử
+    await _client.from('request_history').insert({
+      'request_id': requestId,
+      'entity_type': 'request',
+      'entity_id': requestId,
+      'action': 'reopen',
+      'actor_id': userId,
+      'old_status': 'completed',
+      'new_status': 'pending',
+      'note': trimmedReason,
+    });
+  }
 }

@@ -8,13 +8,18 @@ import '../models/confirmation_input.dart';
 
 class ReworkOrReopenDialog extends StatefulWidget {
   final String requestId;
-  final ConfirmationAction action;
+  final ConfirmationAction
+  action; // requestRework (DF-015) hoặc reopenRequest (DF-016)
+  final String? requestRoomId;
+  final String? currentStudentRoomId;
   final VoidCallback onSuccess;
 
   const ReworkOrReopenDialog({
     super.key,
     required this.requestId,
     required this.action,
+    this.requestRoomId,
+    this.currentStudentRoomId,
     required this.onSuccess,
   });
 
@@ -74,11 +79,23 @@ class _ReworkOrReopenDialogState extends State<ReworkOrReopenDialog> {
 
     setState(() => _submitting = true);
     try {
-      await _repo.requestRework(
-        requestId: widget.requestId,
-        reason: reason,
-        imagePaths: _selectedImagePaths,
-      );
+      if (isRework) {
+        // DF-015
+        await _repo.requestRework(
+          requestId: widget.requestId,
+          reason: reason,
+          imagePaths: _selectedImagePaths,
+        );
+      } else {
+        // DF-016
+        await _repo.reopenRequest(
+          requestId: widget.requestId,
+          requestRoomId: widget.requestRoomId ?? '',
+          currentStudentRoomId: widget.currentStudentRoomId ?? '',
+          reason: reason,
+          imagePaths: _selectedImagePaths,
+        );
+      }
 
       if (mounted) {
         Navigator.pop(context);
@@ -97,8 +114,10 @@ class _ReworkOrReopenDialogState extends State<ReworkOrReopenDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final title = isRework ? 'Yêu cầu sửa lại' : 'Mở lại yêu cầu sửa chữa';
+
     return AlertDialog(
-      title: const Text('Yêu cầu sửa lại'),
+      title: Text(title),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -107,10 +126,12 @@ class _ReworkOrReopenDialogState extends State<ReworkOrReopenDialog> {
             TextField(
               controller: _reasonCtrl,
               maxLines: 3,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'Lý do (bắt buộc) *',
-                hintText: 'Mô tả chi tiết những điểm chưa đạt...',
-                border: OutlineInputBorder(),
+                hintText: isRework
+                    ? 'Mô tả chi tiết những điểm chưa đạt...'
+                    : 'Nêu lý do sự cố phát sinh lại...',
+                border: const OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 16),
@@ -188,7 +209,7 @@ class _ReworkOrReopenDialogState extends State<ReworkOrReopenDialog> {
         FilledButton(
           onPressed: _submitting ? null : _submit,
           style: FilledButton.styleFrom(
-            backgroundColor: Colors.orange.shade800,
+            backgroundColor: isRework ? Colors.orange.shade800 : null,
           ),
           child: _submitting
               ? const SizedBox(
@@ -196,7 +217,7 @@ class _ReworkOrReopenDialogState extends State<ReworkOrReopenDialog> {
                   height: 16,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
-              : const Text('Gửi yêu cầu sửa lại'),
+              : Text(isRework ? 'Gửi yêu cầu sửa lại' : 'Xác nhận mở lại'),
         ),
       ],
     );
