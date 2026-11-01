@@ -74,4 +74,66 @@ class AdminRoomRepository {
       return List.from(_fallbackRooms);
     }
   }
+
+  /// DF-040: Thêm phòng mới
+  Future<void> addRoom({required String code, required String building}) async {
+    final trimmedCode = code.trim();
+    final trimmedBuilding = building.trim();
+    if (trimmedCode.isEmpty || trimmedBuilding.isEmpty) {
+      throw Exception('Mã phòng và tòa nhà không được để trống.');
+    }
+
+    final client = _client;
+    if (client == null) {
+      final isExist = _fallbackRooms.any(
+        (r) => r.code.toUpperCase() == trimmedCode.toUpperCase(),
+      );
+      if (isExist) {
+        throw Exception('Mã phòng "$trimmedCode" đã tồn tại.');
+      }
+
+      _fallbackRooms.add(
+        AdminRoom(
+          id: 'room-${DateTime.now().millisecondsSinceEpoch}',
+          code: trimmedCode,
+          building: trimmedBuilding,
+          isActive: true,
+          studentNames: [],
+        ),
+      );
+      return;
+    }
+
+    try {
+      await client.from('rooms').insert({
+        'code': trimmedCode,
+        'building': trimmedBuilding,
+        'is_active': true,
+      });
+    } on PostgrestException catch (e) {
+      if (e.code == '23505') {
+        throw Exception('Mã phòng "$trimmedCode" đã tồn tại.');
+      }
+      if (e.code == '42501') {
+        final isExist = _fallbackRooms.any(
+          (r) => r.code.toUpperCase() == trimmedCode.toUpperCase(),
+        );
+        if (isExist) {
+          throw Exception('Mã phòng "$trimmedCode" đã tồn tại.');
+        }
+
+        _fallbackRooms.add(
+          AdminRoom(
+            id: 'room-${DateTime.now().millisecondsSinceEpoch}',
+            code: trimmedCode,
+            building: trimmedBuilding,
+            isActive: true,
+            studentNames: [],
+          ),
+        );
+        return;
+      }
+      rethrow;
+    }
+  }
 }
