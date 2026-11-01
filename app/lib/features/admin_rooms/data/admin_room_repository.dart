@@ -20,7 +20,7 @@ class AdminRoomRepository {
       code: 'DEMO-A101',
       building: 'Tòa A',
       isActive: true,
-      studentNames: ['Nguyễn Văn An'],
+      studentNames: ['Nguyễn Văn An'], // Phòng có SV -> Test chặn xóa DF-042
     ),
     AdminRoom(
       id: 'room-2',
@@ -34,7 +34,7 @@ class AdminRoomRepository {
       code: 'B1-112',
       building: 'Tòa B',
       isActive: true,
-      studentNames: [],
+      studentNames: [], // Phòng trống -> Cho phép ngừng dùng thành công DF-042
     ),
     AdminRoom(
       id: 'room-4',
@@ -187,6 +187,57 @@ class AdminRoomRepository {
             code: trimmedCode,
             building: trimmedBuilding,
             isActive: old.isActive,
+            studentNames: old.studentNames,
+          );
+        }
+        return;
+      }
+      rethrow;
+    }
+  }
+
+  /// DF-042: Ngừng sử dụng phòng (Kiểm tra chặn nếu còn sinh viên)
+  Future<void> deactivateRoom(AdminRoom room) async {
+    if (room.studentNames.isNotEmpty) {
+      throw Exception(
+        'Không thể ngừng sử dụng phòng ${room.code} vì vẫn còn ${room.studentNames.length} sinh viên đang ở. Vui lòng chuyển sinh viên sang phòng khác trước.',
+      );
+    }
+
+    final client = _client;
+    if (client == null) {
+      final index = _fallbackRooms.indexWhere((r) => r.id == room.id);
+      if (index != -1) {
+        final old = _fallbackRooms[index];
+        _fallbackRooms[index] = AdminRoom(
+          id: old.id,
+          code: old.code,
+          building: old.building,
+          isActive: false,
+          studentNames: old.studentNames,
+        );
+      }
+      return;
+    }
+
+    try {
+      await client
+          .from('rooms')
+          .update({
+            'is_active': false,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', room.id);
+    } on PostgrestException catch (e) {
+      if (e.code == '42501') {
+        final index = _fallbackRooms.indexWhere((r) => r.id == room.id);
+        if (index != -1) {
+          final old = _fallbackRooms[index];
+          _fallbackRooms[index] = AdminRoom(
+            id: old.id,
+            code: old.code,
+            building: old.building,
+            isActive: false,
             studentNames: old.studentNames,
           );
         }

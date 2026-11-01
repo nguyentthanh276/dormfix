@@ -414,6 +414,8 @@ class _AdminRoomListScreenState extends State<AdminRoomListScreen> {
                 onSelected: (val) {
                   if (val == 'edit') {
                     _openEditRoomDialog(room);
+                  } else if (val == 'deactivate') {
+                    _confirmDeactivate(room);
                   }
                 },
                 itemBuilder: (ctx) => [
@@ -427,6 +429,24 @@ class _AdminRoomListScreenState extends State<AdminRoomListScreen> {
                       ],
                     ),
                   ),
+                  if (room.isActive)
+                    const PopupMenuItem(
+                      value: 'deactivate',
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.block_rounded,
+                            size: 18,
+                            color: Colors.red,
+                          ),
+                          SizedBox(width: 10),
+                          Text(
+                            'Ngừng sử dụng',
+                            style: TextStyle(color: Colors.red),
+                          ),
+                        ],
+                      ),
+                    ),
                 ],
               ),
             ],
@@ -572,6 +592,71 @@ class _AdminRoomListScreenState extends State<AdminRoomListScreen> {
               }
             },
             child: const Text('Cập nhật'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmDeactivate(AdminRoom room) {
+    if (room.studentNames.isNotEmpty) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 26),
+              SizedBox(width: 8),
+              Text(
+                'Không thể ngừng dùng',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+              ),
+            ],
+          ),
+          content: Text(
+            'Phòng ${room.code} hiện có ${room.studentNames.length} sinh viên đang cư trú (${room.studentNames.join(', ')}).\n\nVui lòng chuyển sinh viên sang phòng khác trước khi ngừng sử dụng.',
+            style: const TextStyle(height: 1.4),
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Đã hiểu'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Xác nhận ngừng sử dụng'),
+        content: Text(
+          'Bạn có chắc muốn chuyển phòng ${room.code} sang ngừng sử dụng?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Hủy'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              try {
+                await _repo.deactivateRoom(room);
+                _showToast('Đã chuyển phòng sang ngừng sử dụng');
+                _fetchRooms();
+              } catch (e) {
+                _showToast('$e', isError: true);
+              }
+            },
+            child: const Text('Đồng ý'),
           ),
         ],
       ),
