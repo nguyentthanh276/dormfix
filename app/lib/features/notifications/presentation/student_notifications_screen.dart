@@ -31,6 +31,11 @@ class _StudentNotificationsScreenState
   List<AppNotification> _notifications = [];
   bool _loading = false;
   String? _errorText;
+  bool _opening = false;
+  bool _markingAll = false;
+  int _generation = 0;
+  int _identityGeneration = 0;
+  final Map<String, DateTime> _acknowledgedReads = {};
 
   @override
   void initState() {
@@ -38,82 +43,161 @@ class _StudentNotificationsScreenState
     _load();
   }
 
+  @override
+  void didUpdateWidget(covariant StudentNotificationsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.notificationRepository != widget.notificationRepository ||
+        oldWidget.requestRepository != widget.requestRepository) {
+      _identityGeneration++;
+      _notifications = [];
+      _acknowledgedReads.clear();
+      _opening = false;
+      _markingAll = false;
+      _load();
+    }
+  }
+
+  @override
+  void dispose() {
+    _generation++;
+    _identityGeneration++;
+    _notifications = [];
+    _acknowledgedReads.clear();
+    super.dispose();
+  }
+
   Future<void> _load() async {
+    final generation = ++_generation;
     setState(() {
       _loading = true;
       _errorText = null;
     });
     try {
       final list = await widget.notificationRepository.fetchNotifications();
-      if (mounted) setState(() => _notifications = list);
+      if (!mounted || generation != _generation) return;
+      setState(() {
+        _notifications = list.map((item) {
+          final readAt = _acknowledgedReads[item.id];
+          return !item.isRead && readAt != null
+              ? item.copyWith(readAt: readAt)
+              : item;
+        }).toList();
+      });
     } catch (_) {
-      if (mounted) {
-        setState(() => _errorText = 'Không thể tải thông báo. Hãy thử lại.');
+      if (mounted && generation == _generation) {
+        setState(() {
+          _identityGeneration++;
+          _notifications = [];
+          _acknowledgedReads.clear();
+          _opening = false;
+          _markingAll = false;
+          _errorText = 'Không thể tải thông báo. Hãy thử lại.';
+        });
       }
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted && generation == _generation) {
+        setState(() => _loading = false);
+      }
     }
   }
 
   Future<void> _markAllAsRead() async {
+    if (_opening || _markingAll) return;
+    final identityGeneration = _identityGeneration;
+    final unreadIds = _notifications
+        .where((item) => !item.isRead)
+        .map((item) => item.id)
+        .toSet();
+    setState(() => _markingAll = true);
     try {
       await widget.notificationRepository.markAllAsRead();
-      if (!mounted) return;
+      if (!mounted || identityGeneration != _identityGeneration) return;
       setState(() {
         final now = DateTime.now();
+        for (final id in unreadIds) {
+          _acknowledgedReads[id] = now;
+        }
         _notifications = [
           for (final n in _notifications)
-            n.isRead ? n : n.copyWith(readAt: now),
+            n.isRead || !unreadIds.contains(n.id) ? n : n.copyWith(readAt: now),
         ];
       });
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Đã đánh dấu tất cả là đã đọc')),
       );
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted || identityGeneration != _identityGeneration) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Thao tác thất bại. Vui lòng thử lại.')),
       );
+    } finally {
+      if (mounted && identityGeneration == _identityGeneration) {
+        setState(() => _markingAll = false);
+      }
     }
   }
 
   Future<void> _openNotification(AppNotification item) async {
-    // 1. Đánh dấu đã đọc
-    if (!item.isRead) {
-      widget.notificationRepository.markAsRead(item.id);
-      setState(() {
-        final index = _notifications.indexWhere((n) => n.id == item.id);
-        if (index != -1) {
-          _notifications[index] = item.copyWith(readAt: DateTime.now());
-        }
-      });
-    }
+    if (_opening || _markingAll) return;
+    final identityGeneration = _identityGeneration;
+    setState(() => _opening = true);
+    try {
+      // 1. Đánh dấu đã đọc
+      if (!item.isRead) {
+        await widget.notificationRepository.markAsRead(item.id);
+        if (!mounted || identityGeneration != _identityGeneration) return;
+        setState(() {
+          _acknowledgedReads[item.id] = DateTime.now();
+          final index = _notifications.indexWhere((n) => n.id == item.id);
+          if (index != -1) {
+            _notifications[index] = item.copyWith(
+              readAt: _acknowledgedReads[item.id],
+            );
+          }
+        });
+      }
+      if (!mounted || identityGeneration != _identityGeneration) return;
 
-    // 2. Mở đúng màn hình tương ứng với trạng thái yêu cầu
-    if (item.eventType == NotificationEventType.repairReported) {
-      // Trường hợp kỹ thuật viên đã sửa xong: mở màn hình xác nhận nghiệm thu (DF-013)
-      await Navigator.of(context).push<void>(
-        MaterialPageRoute(
-          builder: (_) => RequestConfirmationScreen(
-            requestId: item.requestId,
-            repository: AdapterConfirmationRepository(widget.requestRepository),
+      // 2. Mở đúng màn hình tương ứng với trạng thái yêu cầu
+      if (item.eventType == NotificationEventType.repairReported) {
+        // Trường hợp kỹ thuật viên đã sửa xong: mở màn hình xác nhận nghiệm thu (DF-013)
+        await Navigator.of(context).push<void>(
+          MaterialPageRoute(
+            builder: (_) => RequestConfirmationScreen(
+              requestId: item.requestId,
+              repository: AdapterConfirmationRepository(
+                widget.requestRepository,
+              ),
+            ),
           ),
-        ),
-      );
-    } else {
-      // Các trường hợp khác: mở màn hình chi tiết yêu cầu (DF-010)
-      await Navigator.of(context).push<void>(
-        MaterialPageRoute(
-          builder: (_) => RequestDetailScreen(
-            repository: widget.requestRepository,
-            requestId: item.requestId,
+        );
+      } else {
+        // Các trường hợp khác: mở màn hình chi tiết yêu cầu (DF-010)
+        await Navigator.of(context).push<void>(
+          MaterialPageRoute(
+            builder: (_) => RequestDetailScreen(
+              repository: widget.requestRepository,
+              requestId: item.requestId,
+            ),
           ),
-        ),
-      );
-    }
+        );
+      }
 
-    if (mounted) {
-      _load();
+      if (mounted && identityGeneration == _identityGeneration) {
+        await _load();
+      }
+    } catch (_) {
+      if (mounted && identityGeneration == _identityGeneration) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Không thể mở thông báo. Vui lòng thử lại.'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted && identityGeneration == _identityGeneration) {
+        setState(() => _opening = false);
+      }
     }
   }
 
@@ -167,7 +251,7 @@ class _StudentNotificationsScreenState
             IconButton(
               tooltip: 'Đánh dấu tất cả đã đọc',
               icon: const Icon(Icons.done_all_rounded),
-              onPressed: _markAllAsRead,
+              onPressed: _opening || _markingAll ? null : _markAllAsRead,
             ),
         ],
       ),
@@ -218,7 +302,7 @@ class _StudentNotificationsScreenState
       elevation: 0,
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: () => _openNotification(item),
+        onTap: _opening || _markingAll ? null : () => _openNotification(item),
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Row(
