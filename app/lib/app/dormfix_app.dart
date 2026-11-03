@@ -9,6 +9,7 @@ import '../features/auth/data/auth_repository.dart';
 import '../features/auth/presentation/auth_controller.dart';
 import '../features/profile/data/profile_repository.dart';
 import '../features/technician_jobs/data/technician_jobs_repository.dart';
+import '../features/technician_jobs/data/technician_tracking_repository.dart';
 import '../features/technician_jobs/data/technician_workflow_repository.dart';
 import 'startup_page.dart';
 
@@ -19,6 +20,7 @@ class DormFixApp extends StatefulWidget {
     this.backendError,
     this.authRepository,
     this.technicianJobsRepository,
+    this.technicianTrackingRepository,
     this.technicianWorkflowRepository,
     this.profileRepository,
     this.adminAccountsRepository,
@@ -29,6 +31,7 @@ class DormFixApp extends StatefulWidget {
   final String? backendError;
   final AuthRepository? authRepository;
   final TechnicianJobsRepository? technicianJobsRepository;
+  final TechnicianTrackingRepository? technicianTrackingRepository;
   final TechnicianWorkflowRepository? technicianWorkflowRepository;
   final ProfileRepository? profileRepository;
   final AdminAccountsRepository? adminAccountsRepository;
@@ -41,6 +44,7 @@ class DormFixApp extends StatefulWidget {
 class _DormFixAppState extends State<DormFixApp> {
   late final AuthController _authController;
   late final TechnicianJobsRepository? _technicianJobsRepository;
+  late final TechnicianTrackingRepository? _technicianTrackingRepository;
   late final TechnicianWorkflowRepository? _technicianWorkflowRepository;
   late final ProfileRepository? _profileRepository;
   late final AdminAccountsRepository? _adminAccountsRepository;
@@ -71,6 +75,11 @@ class _DormFixAppState extends State<DormFixApp> {
         widget.technicianWorkflowRepository ??
         (widget.backendReady
             ? SupabaseTechnicianWorkflowRepository(Supabase.instance.client)
+            : null);
+    _technicianTrackingRepository =
+        widget.technicianTrackingRepository ??
+        (widget.backendReady
+            ? SupabaseTechnicianTrackingRepository(Supabase.instance.client)
             : null);
     _profileRepository =
         widget.profileRepository ??
@@ -106,6 +115,7 @@ class _DormFixAppState extends State<DormFixApp> {
     home: StartupPage(
       controller: _authController,
       technicianJobsRepository: _technicianJobsRepository,
+      technicianTrackingRepository: _technicianTrackingRepository,
       technicianWorkflowRepository: _technicianWorkflowRepository,
       profileRepository: _profileRepository,
       adminAccountsRepository: _adminAccountsRepository,
