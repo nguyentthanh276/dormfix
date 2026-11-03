@@ -9,7 +9,7 @@ class MockNotificationRepository implements NotificationRepository {
   bool failAction = false;
 
   MockNotificationRepository({
-    this.delay = const Duration(milliseconds: 150),
+    this.delay = Duration.zero,
     List<AppNotification>? notifications,
   }) : _notifications =
            notifications ??
