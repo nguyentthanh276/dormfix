@@ -278,7 +278,7 @@ do $$ begin
    or (select count(*) from public.request_feedback where request_id=pg_temp.tc_id('r_main'))<>1
    or (select count(*) from public.request_history where request_id=pg_temp.tc_id('r_main') and action='continued')<>2
    or (select count(*) from public.request_history where request_id=pg_temp.tc_id('r_main') and action='repair_reported')<>2
-   or (select count(*) from public.notifications where request_id=pg_temp.tc_id('r_main'))<>2
+   or (select count(*) from public.notifications where request_id=pg_temp.tc_id('r_main') and event_type='repair_reported')<>2
    or not exists(select 1 from public.repair_requests where id=pg_temp.tc_id('r_main') and status='awaiting_confirmation' and version=10)
    or not exists(select 1 from public.repair_results where id=pg_temp.tc_id('result_first') and content='First rework result' and request_version=6)
    or not exists(select 1 from public.repair_results where id=pg_temp.tc_id('result_second') and content='Second rework result' and request_version=9)
