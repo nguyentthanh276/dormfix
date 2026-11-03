@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../auth/presentation/auth_controller.dart';
+import '../../notifications/data/notification_repository.dart';
 import '../../profile/data/profile_repository.dart';
 import '../../profile/presentation/profile_page.dart';
 import '../data/request_repository.dart';
@@ -17,6 +18,7 @@ class StudentShellScreen extends StatefulWidget {
   final VoidCallback onSignOut;
   final AuthController? controller;
   final ProfileRepository? profileRepository;
+  final NotificationRepository? notificationRepository;
 
   const StudentShellScreen({
     super.key,
@@ -26,6 +28,7 @@ class StudentShellScreen extends StatefulWidget {
     required this.onSignOut,
     this.controller,
     this.profileRepository,
+    this.notificationRepository,
   });
 
   @override
@@ -36,7 +39,10 @@ class _StudentShellScreenState extends State<StudentShellScreen> {
   int _tab = 0;
 
   Widget _page() => switch (_tab) {
-    0 => MyRequestsScreen(repository: widget.repository),
+    0 => MyRequestsScreen(
+      repository: widget.repository,
+      notificationRepository: widget.notificationRepository,
+    ),
     1 => CreateRequestScreen(
       repository: widget.repository,
       roomCode: widget.roomCode,
