@@ -38,14 +38,27 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
   String? _errorText;
   int _unreadNotifications = 0;
 
-  NotificationRepository get _effectiveNotificationRepo =>
-      widget.notificationRepository ?? MockNotificationRepository();
+  late NotificationRepository _effectiveNotificationRepo;
+  int _notificationGeneration = 0;
 
   @override
   void initState() {
     super.initState();
+    _effectiveNotificationRepo =
+        widget.notificationRepository ?? MockNotificationRepository();
     _load(); // gọi dữ liệu ở initState, KHÔNG gọi trong build()
     _loadUnreadNotifications();
+  }
+
+  @override
+  void didUpdateWidget(covariant MyRequestsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.notificationRepository != widget.notificationRepository) {
+      _effectiveNotificationRepo =
+          widget.notificationRepository ?? MockNotificationRepository();
+      _unreadNotifications = 0;
+      _loadUnreadNotifications();
+    }
   }
 
   Future<void> _load() async {
@@ -73,10 +86,17 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
   }
 
   Future<void> _loadUnreadNotifications() async {
+    final generation = ++_notificationGeneration;
     try {
       final count = await _effectiveNotificationRepo.getUnreadCount();
-      if (mounted) setState(() => _unreadNotifications = count);
-    } catch (_) {}
+      if (mounted && generation == _notificationGeneration) {
+        setState(() => _unreadNotifications = count);
+      }
+    } catch (_) {
+      if (mounted && generation == _notificationGeneration) {
+        setState(() => _unreadNotifications = 0);
+      }
+    }
   }
 
   Future<void> _openDetail(RepairRequest item) async {
