@@ -3,14 +3,19 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../core/models/app_role.dart';
+import '../../../core/models/repair_status.dart';
 import '../../auth/presentation/auth_controller.dart';
 import '../../profile/data/profile_repository.dart';
 import '../../profile/presentation/profile_page.dart';
 import '../data/technician_jobs_repository.dart';
+import '../data/technician_tracking_repository.dart';
 import '../data/technician_workflow_repository.dart';
 import '../models/technician_job.dart';
 import 'technician_job_detail_page.dart';
 import 'technician_job_widgets.dart';
+import 'technician_tracking_views.dart';
+
+enum _TechnicianSection { jobs, history, notifications }
 
 class TechnicianHomePage extends StatefulWidget {
   const TechnicianHomePage({
@@ -18,12 +23,14 @@ class TechnicianHomePage extends StatefulWidget {
     required this.controller,
     this.repository,
     this.workflowRepository,
+    this.trackingRepository,
     this.profileRepository,
   });
 
   final AuthController controller;
   final TechnicianJobsRepository? repository;
   final TechnicianWorkflowRepository? workflowRepository;
+  final TechnicianTrackingRepository? trackingRepository;
   final ProfileRepository? profileRepository;
 
   @override
@@ -32,7 +39,18 @@ class TechnicianHomePage extends StatefulWidget {
 
 class _TechnicianHomePageState extends State<TechnicianHomePage>
     with WidgetsBindingObserver {
+  static const _filterableStatuses = [
+    RepairStatus.assigned,
+    RepairStatus.inProgress,
+    RepairStatus.awaitingConfirmation,
+    RepairStatus.awaitingRework,
+    RepairStatus.completed,
+    RepairStatus.cancelled,
+  ];
+
   List<TechnicianJob> _jobs = [];
+  RepairStatus? _selectedStatus;
+  _TechnicianSection _section = _TechnicianSection.jobs;
   String? _identity;
   String? _selectedJobId;
   String? _error;
@@ -70,7 +88,8 @@ class _TechnicianHomePageState extends State<TechnicianHomePage>
     }
     if (oldWidget.controller != widget.controller ||
         oldWidget.repository != widget.repository ||
-        oldWidget.workflowRepository != widget.workflowRepository) {
+        oldWidget.workflowRepository != widget.workflowRepository ||
+        oldWidget.trackingRepository != widget.trackingRepository) {
       _reset();
       _allowed = _hasAccess;
       _identity = _allowed ? widget.controller.profile!.id : null;
@@ -81,6 +100,8 @@ class _TechnicianHomePageState extends State<TechnicianHomePage>
   void _reset() {
     _generation++;
     _jobs = [];
+    _selectedStatus = null;
+    _section = _TechnicianSection.jobs;
     _selectedJobId = null;
     _error = null;
     _loading = false;
@@ -102,7 +123,9 @@ class _TechnicianHomePageState extends State<TechnicianHomePage>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed && _selectedJobId == null) {
+    if (state == AppLifecycleState.resumed &&
+        _selectedJobId == null &&
+        _section == _TechnicianSection.jobs) {
       unawaited(_loadJobs());
     }
   }
@@ -158,8 +181,21 @@ class _TechnicianHomePageState extends State<TechnicianHomePage>
   }
 
   void _backToList() {
-    setState(() => _selectedJobId = null);
+    setState(() {
+      if (_selectedJobId == null) _section = _TechnicianSection.jobs;
+      _selectedJobId = null;
+    });
     unawaited(_loadJobs());
+  }
+
+  void _openTrackedJob(String requestId) {
+    if (!_hasAccess || widget.repository == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Chi tiết công việc chưa sẵn sàng.')),
+      );
+      return;
+    }
+    setState(() => _selectedJobId = requestId);
   }
 
   void _detailAccessDenied() {
@@ -210,26 +246,54 @@ class _TechnicianHomePageState extends State<TechnicianHomePage>
     }
     final identity = widget.controller.profile!.id;
     final selectedId = _selectedJobId;
+    final atJobs = selectedId == null && _section == _TechnicianSection.jobs;
     // Detail is local state, never a route on the application's Navigator.
     // Removing this authenticated Home removes every detail and photo.
     return PopScope(
-      canPop: selectedId == null,
+      canPop: atJobs,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop && _selectedJobId != null) _backToList();
+        if (!didPop) _backToList();
       },
       child: Scaffold(
         appBar: AppBar(
-          leading: selectedId == null
-              ? null
-              : BackButton(onPressed: _backToList),
+          leading: atJobs ? null : BackButton(onPressed: _backToList),
           title: Text(
-            selectedId == null
-                ? 'DormFix - Kỹ thuật viên'
-                : 'Chi tiết công việc',
+            selectedId != null
+                ? 'Chi tiết công việc'
+                : switch (_section) {
+                    _TechnicianSection.jobs => 'DormFix - Kỹ thuật viên',
+                    _TechnicianSection.history => 'Lịch sử công việc',
+                    _TechnicianSection.notifications => 'Thông báo',
+                  },
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
           actions: [
+            if (selectedId == null)
+              PopupMenuButton<_TechnicianSection>(
+                key: const Key('technician-tracking-menu'),
+                tooltip: 'Theo dõi công việc',
+                onSelected: (section) {
+                  setState(() => _section = section);
+                  if (section == _TechnicianSection.jobs) {
+                    unawaited(_loadJobs());
+                  }
+                },
+                itemBuilder: (_) => const [
+                  PopupMenuItem(
+                    value: _TechnicianSection.jobs,
+                    child: Text('Công việc được giao'),
+                  ),
+                  PopupMenuItem(
+                    value: _TechnicianSection.history,
+                    child: Text('Lịch sử công việc'),
+                  ),
+                  PopupMenuItem(
+                    value: _TechnicianSection.notifications,
+                    child: Text('Thông báo'),
+                  ),
+                ],
+              ),
             IconButton(
               key: const Key('technician-profile-btn'),
               tooltip: 'Hồ sơ cá nhân',
@@ -287,7 +351,20 @@ class _TechnicianHomePageState extends State<TechnicianHomePage>
                         workflowRepository: widget.workflowRepository,
                         onJobChanged: () => _jobWriteFinished(identity),
                       )
-                    : _buildList(),
+                    : switch (_section) {
+                        _TechnicianSection.jobs => _buildList(),
+                        _TechnicianSection.history => TechnicianWorkHistoryView(
+                          key: ValueKey('$_identity:history'),
+                          repository: widget.trackingRepository,
+                          onOpenDetail: _openTrackedJob,
+                        ),
+                        _TechnicianSection.notifications =>
+                          TechnicianNotificationsView(
+                            key: ValueKey('$_identity:notifications'),
+                            repository: widget.trackingRepository,
+                            onOpenDetail: _openTrackedJob,
+                          ),
+                      },
               ),
             ],
           ),
@@ -329,45 +406,101 @@ class _TechnicianHomePageState extends State<TechnicianHomePage>
                 ],
               ),
             )
-          : ListView.separated(
-              key: const Key('technician-jobs-list'),
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(16),
-              itemCount: _jobs.length,
-              separatorBuilder: (_, _) => const SizedBox(height: 12),
-              itemBuilder: (context, index) {
-                final job = _jobs[index];
-                return Card(
-                  clipBehavior: Clip.antiAlias,
-                  child: InkWell(
-                    onTap: () => setState(() => _selectedJobId = job.id),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            job.requestCode,
-                            style: Theme.of(context).textTheme.labelLarge,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            job.title,
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          const SizedBox(height: 8),
-                          TechnicianStatusBadge(status: job.status),
-                          const SizedBox(height: 8),
-                          Text('Phòng ${job.roomCode} · ${job.building}'),
-                          Text('Loại sự cố: ${job.categoryName}'),
-                          Text('Tạo lúc: ${technicianDate(job.createdAt)}'),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
+          : _buildFilteredJobs(),
     );
   }
+
+  Widget _buildFilteredJobs() {
+    final visibleJobs = _selectedStatus == null
+        ? _jobs
+        : _jobs.where((job) => job.status == _selectedStatus).toList();
+
+    return Column(
+      children: [
+        _buildStatusFilters(),
+        Expanded(
+          child: visibleJobs.isEmpty
+              ? ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  children: [
+                    SizedBox(
+                      height: 240,
+                      child: TechnicianJobsMessage(
+                        icon: Icons.filter_list_off,
+                        message:
+                            'Không có công việc ở trạng thái ${_selectedStatus!.label}.',
+                        actionLabel: 'Xóa bộ lọc',
+                        onAction: () => setState(() => _selectedStatus = null),
+                      ),
+                    ),
+                  ],
+                )
+              : ListView.separated(
+                  key: const Key('technician-jobs-list'),
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                  itemCount: visibleJobs.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 12),
+                  itemBuilder: (context, index) {
+                    final job = visibleJobs[index];
+                    return Card(
+                      clipBehavior: Clip.antiAlias,
+                      child: InkWell(
+                        onTap: () => setState(() => _selectedJobId = job.id),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                job.requestCode,
+                                style: Theme.of(context).textTheme.labelLarge,
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                job.title,
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
+                              const SizedBox(height: 8),
+                              TechnicianStatusBadge(status: job.status),
+                              const SizedBox(height: 8),
+                              Text('Phòng ${job.roomCode} · ${job.building}'),
+                              Text('Loại sự cố: ${job.categoryName}'),
+                              Text('Tạo lúc: ${technicianDate(job.createdAt)}'),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatusFilters() => SingleChildScrollView(
+    scrollDirection: Axis.horizontal,
+    padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+    child: Row(
+      children: [
+        ChoiceChip(
+          label: const Text('Tất cả'),
+          selected: _selectedStatus == null,
+          onSelected: (_) => setState(() => _selectedStatus = null),
+        ),
+        for (final status in _filterableStatuses) ...[
+          const SizedBox(width: 8),
+          ChoiceChip(
+            label: Text('${status.label} (${_statusCount(status)})'),
+            selected: _selectedStatus == status,
+            onSelected: (_) => setState(() => _selectedStatus = status),
+          ),
+        ],
+      ],
+    ),
+  );
+
+  int _statusCount(RepairStatus status) =>
+      _jobs.where((job) => job.status == status).length;
 }

@@ -8,6 +8,8 @@ DF-028/029/030 thêm RPC đọc danh sách tài khoản Admin trong `009_admin_a
 
 DF-043/044 thêm các RPC Admin chỉ đọc danh sách, bộ lọc và chi tiết yêu cầu trong `010_admin_request_reads.sql`. Migration chỉ thêm function trên schema hiện có, cần triển khai một lần sau khi được duyệt; không chạy lại sau khi đã áp dụng. Test rollback cho quyền Admin, bộ lọc kết hợp, khoảng ngày và dữ liệu chi tiết nằm ở `tests/010_admin_request_reads.sql`.
 
+DF-027 thêm lịch sử từng lần phân công và thông báo trong ứng dụng Kỹ thuật viên trong `013_technician_tracking.sql`, áp dụng một lần sau 012. Người đã chuyển giao chỉ nhận snapshot tóm tắt; thao tác đánh dấu đọc chỉ dành cho chính người nhận. Trigger tạo thông báo phân công/chuyển giao/hủy/sửa lại/hoàn tất cùng transaction nguồn, không backfill dữ liệu cũ hoặc gửi thông báo đẩy. Hợp đồng tại `../docs/technician-tracking-contract.md`, script rollback tại `tests/013_technician_tracking.sql`. File migration trong Git chưa xác nhận việc triển khai lên database dùng chung.
+
 ## Các quyết định dữ liệu
 
 - Supabase Auth lưu mật khẩu. Một tài khoản Auth liên kết một profile.
