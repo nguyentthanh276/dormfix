@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../core/models/app_role.dart';
+import '../../../core/models/repair_status.dart';
 import '../../auth/presentation/auth_controller.dart';
 import '../../profile/data/profile_repository.dart';
 import '../../profile/presentation/profile_page.dart';
@@ -32,7 +33,17 @@ class TechnicianHomePage extends StatefulWidget {
 
 class _TechnicianHomePageState extends State<TechnicianHomePage>
     with WidgetsBindingObserver {
+  static const _filterableStatuses = [
+    RepairStatus.assigned,
+    RepairStatus.inProgress,
+    RepairStatus.awaitingConfirmation,
+    RepairStatus.awaitingRework,
+    RepairStatus.completed,
+    RepairStatus.cancelled,
+  ];
+
   List<TechnicianJob> _jobs = [];
+  RepairStatus? _selectedStatus;
   String? _identity;
   String? _selectedJobId;
   String? _error;
@@ -81,6 +92,7 @@ class _TechnicianHomePageState extends State<TechnicianHomePage>
   void _reset() {
     _generation++;
     _jobs = [];
+    _selectedStatus = null;
     _selectedJobId = null;
     _error = null;
     _loading = false;
@@ -329,45 +341,101 @@ class _TechnicianHomePageState extends State<TechnicianHomePage>
                 ],
               ),
             )
-          : ListView.separated(
-              key: const Key('technician-jobs-list'),
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(16),
-              itemCount: _jobs.length,
-              separatorBuilder: (_, _) => const SizedBox(height: 12),
-              itemBuilder: (context, index) {
-                final job = _jobs[index];
-                return Card(
-                  clipBehavior: Clip.antiAlias,
-                  child: InkWell(
-                    onTap: () => setState(() => _selectedJobId = job.id),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            job.requestCode,
-                            style: Theme.of(context).textTheme.labelLarge,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            job.title,
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          const SizedBox(height: 8),
-                          TechnicianStatusBadge(status: job.status),
-                          const SizedBox(height: 8),
-                          Text('Phòng ${job.roomCode} · ${job.building}'),
-                          Text('Loại sự cố: ${job.categoryName}'),
-                          Text('Tạo lúc: ${technicianDate(job.createdAt)}'),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
+          : _buildFilteredJobs(),
     );
   }
+
+  Widget _buildFilteredJobs() {
+    final visibleJobs = _selectedStatus == null
+        ? _jobs
+        : _jobs.where((job) => job.status == _selectedStatus).toList();
+
+    return Column(
+      children: [
+        _buildStatusFilters(),
+        Expanded(
+          child: visibleJobs.isEmpty
+              ? ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  children: [
+                    SizedBox(
+                      height: 240,
+                      child: TechnicianJobsMessage(
+                        icon: Icons.filter_list_off,
+                        message:
+                            'Không có công việc ở trạng thái ${_selectedStatus!.label}.',
+                        actionLabel: 'Xóa bộ lọc',
+                        onAction: () => setState(() => _selectedStatus = null),
+                      ),
+                    ),
+                  ],
+                )
+              : ListView.separated(
+                  key: const Key('technician-jobs-list'),
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                  itemCount: visibleJobs.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 12),
+                  itemBuilder: (context, index) {
+                    final job = visibleJobs[index];
+                    return Card(
+                      clipBehavior: Clip.antiAlias,
+                      child: InkWell(
+                        onTap: () => setState(() => _selectedJobId = job.id),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                job.requestCode,
+                                style: Theme.of(context).textTheme.labelLarge,
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                job.title,
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
+                              const SizedBox(height: 8),
+                              TechnicianStatusBadge(status: job.status),
+                              const SizedBox(height: 8),
+                              Text('Phòng ${job.roomCode} · ${job.building}'),
+                              Text('Loại sự cố: ${job.categoryName}'),
+                              Text('Tạo lúc: ${technicianDate(job.createdAt)}'),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatusFilters() => SingleChildScrollView(
+    scrollDirection: Axis.horizontal,
+    padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+    child: Row(
+      children: [
+        ChoiceChip(
+          label: const Text('Tất cả'),
+          selected: _selectedStatus == null,
+          onSelected: (_) => setState(() => _selectedStatus = null),
+        ),
+        for (final status in _filterableStatuses) ...[
+          const SizedBox(width: 8),
+          ChoiceChip(
+            label: Text('${status.label} (${_statusCount(status)})'),
+            selected: _selectedStatus == status,
+            onSelected: (_) => setState(() => _selectedStatus = status),
+          ),
+        ],
+      ],
+    ),
+  );
+
+  int _statusCount(RepairStatus status) =>
+      _jobs.where((job) => job.status == status).length;
 }
