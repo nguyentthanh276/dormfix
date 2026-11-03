@@ -10,6 +10,8 @@ DF-043/044 thêm các RPC Admin chỉ đọc danh sách, bộ lọc và chi ti�
 
 DF-027 thêm lịch sử từng lần phân công và thông báo trong ứng dụng Kỹ thuật viên trong `013_technician_tracking.sql`, áp dụng một lần sau 012. Người đã chuyển giao chỉ nhận snapshot tóm tắt; thao tác đánh dấu đọc chỉ dành cho chính người nhận. Trigger tạo thông báo phân công/chuyển giao/hủy/sửa lại/hoàn tất cùng transaction nguồn, không backfill dữ liệu cũ hoặc gửi thông báo đẩy. Hợp đồng tại `../docs/technician-tracking-contract.md`, script rollback tại `tests/013_technician_tracking.sql`. File migration trong Git chưa xác nhận việc triển khai lên database dùng chung.
 
+DF-017 thêm hai RPC đánh dấu đọc thông báo Sinh viên trong `014_student_notification_reads.sql`, áp dụng một lần sau 013. Chỉ Sinh viên active/đã đổi mật khẩu được sửa `read_at` của thông báo chính chủ bằng thời gian server; giữ nguyên thời gian đã đọc và không cấp quyền ghi bảng trực tiếp. Hợp đồng tại `../docs/student-notifications-contract.md`, regression rollback tại `tests/014_student_notification_reads.sql`. Migration 014 đã triển khai ngày 03/11/2026, ghi nhận tại `DEPLOYMENT.md`; ứng dụng Sinh viên vẫn dùng mock cho cả yêu cầu và thông báo.
+
 ## Các quyết định dữ liệu
 
 - Supabase Auth lưu mật khẩu. Một tài khoản Auth liên kết một profile.
