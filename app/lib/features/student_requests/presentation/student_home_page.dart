@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../../core/models/app_role.dart';
 import '../../auth/presentation/auth_controller.dart';
 import '../../auth/presentation/role_home_page.dart';
+import '../../notifications/data/mock_notification_repository.dart';
+import '../../notifications/data/notification_repository.dart';
 import '../../profile/data/profile_repository.dart';
 import '../data/mock_request_repository.dart';
 import '../data/request_repository.dart';
@@ -13,10 +15,12 @@ class StudentHomePage extends StatefulWidget {
     super.key,
     required this.controller,
     this.profileRepository,
+    this.notificationRepository,
   });
 
   final AuthController controller;
   final ProfileRepository? profileRepository;
+  final NotificationRepository? notificationRepository;
 
   @override
   State<StudentHomePage> createState() => _StudentHomePageState();
@@ -31,6 +35,9 @@ class _StudentHomePageState extends State<StudentHomePage> {
     studentId: widget.controller.profile!.id,
     studentName: widget.controller.profile?.fullName ?? 'Sinh viên',
   );
+
+  late final NotificationRepository _notificationRepository =
+      widget.notificationRepository ?? MockNotificationRepository();
 
   @override
   Widget build(BuildContext context) {
@@ -55,6 +62,7 @@ class _StudentHomePageState extends State<StudentHomePage> {
               onSignOut: widget.controller.signOut,
               controller: widget.controller,
               profileRepository: widget.profileRepository,
+              notificationRepository: _notificationRepository,
             ),
           ),
         ],
