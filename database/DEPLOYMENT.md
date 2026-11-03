@@ -32,3 +32,11 @@ Chỉ authenticated được gọi get_my_profile(); hàm không nhận user ID.
 - Đã gọi cả hai RPC qua HTTP thật bằng publishable key, không có phiên đăng nhập: cùng trả HTTP 401 với SQLSTATE `42501`, từ chối quyền EXECUTE của anon.
 - Migration không đổi tài khoản, mật khẩu, cờ đổi mật khẩu hay yêu cầu có sẵn. Chưa chạy seed demo tùy chọn.
 - Giới hạn xác minh: SQL test dùng role/JWT-sub mô phỏng và Storage metadata. Chưa có phiên Kỹ thuật viên đủ điều kiện để kiểm thử toàn bộ Flutter/HTTP bằng tài khoản thật; chưa tải object ảnh thật. Luồng đổi mật khẩu bắt buộc là công việc DF-003 riêng, vẫn cần hoàn thiện.
+
+## Lịch sử và thông báo Kỹ thuật viên — 03/11/2026
+
+- Đã áp dụng `013_technician_tracking.sql` qua Supabase migration API trên project `nxobutgnhceyabjbiiya` sau các migration Admin 011/012 hiện có.
+- Trước triển khai, migration và `tests/013_technician_tracking.sql` chạy trong cùng một transaction rồi rollback, đạt PASS. Sau triển khai, chạy lại regression độc lập cũng đạt PASS; không còn Auth user `@technician-tracking-test.invalid`.
+- Xác minh có ba RPC `technician_list_work_history`, `technician_list_notifications`, `technician_mark_notification_read` và đúng một trigger `technician_tracking_events`. Các function đều pin `search_path` rỗng; anon không có quyền thực thi, helper trigger không cấp EXECUTE cho authenticated. Ba RPC công khai kiểm tra role/trạng thái/mật khẩu và dữ liệu chính chủ.
+- Security advisor báo [các SECURITY DEFINER RPC gọi được bởi authenticated](https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable), bao gồm ba API mới được chủ ý công khai cho ứng dụng. Quyền chủ sở hữu, role, tài khoản và ACL đã được kiểm tra bằng SQL regression; không cấp quyền ghi bảng thông báo trực tiếp. Advisor cũng nhắc cấu hình [leaked password protection](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection) đang tắt trên project; cấu hình Auth không thay đổi trong đợt này.
+- Trigger chỉ tạo thông báo từ các thay đổi database mới, không backfill dữ liệu cũ. Các thao tác mock cục bộ không tạo sự kiện trên Supabase. SQL xác minh bằng role/JWT mô phỏng; chưa xác minh thao tác Student qua HTTP thật hoặc giao dịch song song hai phiên. Sequence mã yêu cầu có thể có khoảng trống do fixture rollback.

@@ -300,7 +300,8 @@ do $$ begin
        and h.occurred_at=a.transfer_confirmed_at and h.old_status='in_progress' and h.new_status='in_progress')
    or exists(select 1 from technician_transfer_confirmed_b b join public.request_assignments a on a.id=pg_temp.tf_id('assignment_b')
      where (b.data-'ended_at'-'end_reason')<>(to_jsonb(a)-'ended_at'-'end_reason'))
-   or exists(select 1 from public.notifications n where n.request_id=pg_temp.tf_id('r_main')) then
+   or exists(select 1 from public.notifications n where n.request_id=pg_temp.tf_id('r_main')
+     and n.event_type not in ('transferred_in','transferred_out')) then
    raise exception 'FAIL: fresh assignment per transfer, confirmation audit, old proof, or no-notification contract';
  end if;
 end $$;
@@ -315,7 +316,7 @@ do $$ begin
  if (select count(*) from public.repair_results where request_id=pg_temp.tf_id('r_main'))<>2
    or (select count(*) from public.request_attachments where request_id=pg_temp.tf_id('r_main'))<>3
    or (select count(*) from public.request_history where request_id=pg_temp.tf_id('r_main') and action='repair_reported')<>1
-   or (select count(*) from public.notifications where request_id=pg_temp.tf_id('r_main'))<>1
+   or (select count(*) from public.notifications where request_id=pg_temp.tf_id('r_main') and event_type='repair_reported')<>1
    or not exists(select 1 from public.repair_requests where id=pg_temp.tf_id('r_main') and status='awaiting_confirmation' and version=10)
    or not exists(select 1 from public.repair_results where id=pg_temp.tf_id('new_result') and assignment_id=pg_temp.tf_id('assignment_a_again') and request_version=9)
    or exists(select 1 from technician_transfer_before b join public.repair_results r on r.id=b.id where b.kind='result' and b.data<>to_jsonb(r))
