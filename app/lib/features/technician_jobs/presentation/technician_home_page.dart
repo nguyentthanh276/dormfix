@@ -427,7 +427,7 @@ class _TechnicianHomePageState extends State<TechnicianHomePage>
         for (final status in _filterableStatuses) ...[
           const SizedBox(width: 8),
           ChoiceChip(
-            label: Text(status.label),
+            label: Text('${status.label} (${_statusCount(status)})'),
             selected: _selectedStatus == status,
             onSelected: (_) => setState(() => _selectedStatus = status),
           ),
@@ -435,4 +435,7 @@ class _TechnicianHomePageState extends State<TechnicianHomePage>
       ],
     ),
   );
+
+  int _statusCount(RepairStatus status) =>
+      _jobs.where((job) => job.status == status).length;
 }
