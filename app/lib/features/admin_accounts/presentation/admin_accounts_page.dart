@@ -6,6 +6,7 @@ import '../../../core/models/app_role.dart';
 import '../../../core/theme/app_colors.dart';
 import '../data/admin_accounts_repository.dart';
 import '../models/managed_account.dart';
+import 'create_student_dialog.dart';
 
 /// DF-028/029/030: danh sách, tìm kiếm và lọc tài khoản dành riêng cho Admin.
 class AdminAccountsPage extends StatefulWidget {
@@ -152,40 +153,67 @@ class _AdminAccountsPageState extends State<AdminAccountsPage> {
     );
   }
 
-  Widget _pageHeading(BuildContext context) => Row(
+  Future<void> _openCreateStudentDialog() async {
+    final created = await CreateStudentDialog.show(
+      context,
+      repository: widget.repository,
+    );
+    if (created == true && mounted) {
+      _load();
+    }
+  }
+
+  Widget _pageHeading(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      Container(
-        width: 52,
-        height: 52,
-        decoration: BoxDecoration(
-          color: AppColors.primary.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: const Icon(
-          Icons.manage_accounts_outlined,
-          color: AppColors.primaryDark,
-          size: 28,
-        ),
-      ),
-      const SizedBox(width: 16),
-      Expanded(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Tài khoản',
-              style: Theme.of(context).textTheme.headlineSmall
-                  ?.copyWith(fontWeight: FontWeight.w700),
+      Row(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(16),
             ),
-            const SizedBox(height: 3),
-            Text(
-              'Danh sách Sinh viên và Kỹ thuật viên',
-              style: Theme.of(context).textTheme.bodyMedium
-                  ?.copyWith(color: Colors.black54),
+            child: const Icon(
+              Icons.manage_accounts_outlined,
+              color: AppColors.primaryDark,
+              size: 28,
             ),
-          ],
-        ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Tài khoản',
+                  style: Theme.of(context).textTheme.headlineSmall
+                      ?.copyWith(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  'Danh sách Sinh viên và Kỹ thuật viên',
+                  style: Theme.of(context).textTheme.bodyMedium
+                      ?.copyWith(color: Colors.black54),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
+      if (widget.isAdmin) ...[
+        const SizedBox(height: 16),
+        Align(
+          alignment: Alignment.centerRight,
+          child: FilledButton.icon(
+            key: const Key('create-student-btn'),
+            onPressed: _openCreateStudentDialog,
+            icon: const Icon(Icons.person_add_alt_1_outlined),
+            label: const Text('Tạo tài khoản Sinh viên'),
+          ),
+        ),
+      ],
     ],
   );
 
