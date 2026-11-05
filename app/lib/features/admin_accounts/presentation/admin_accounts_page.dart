@@ -6,6 +6,7 @@ import '../../../core/models/app_role.dart';
 import '../../../core/theme/app_colors.dart';
 import '../data/admin_accounts_repository.dart';
 import '../models/managed_account.dart';
+import 'reset_password_dialog.dart';
 
 /// DF-028/029/030: danh sách, tìm kiếm và lọc tài khoản dành riêng cho Admin.
 class AdminAccountsPage extends StatefulWidget {
@@ -104,6 +105,14 @@ class _AdminAccountsPageState extends State<AdminAccountsPage> {
 
   bool get _hasFilters =>
       _search.text.trim().isNotEmpty || _role != null || _status != null;
+
+  Future<void> _openResetPasswordDialog(ManagedAccount account) async {
+    await ResetPasswordDialog.show(
+      context,
+      repository: widget.repository,
+      account: account,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -355,6 +364,7 @@ class _AdminAccountsPageState extends State<AdminAccountsPage> {
                 DataColumn(label: Text('Mã định danh')),
                 DataColumn(label: Text('Vai trò')),
                 DataColumn(label: Text('Trạng thái')),
+                DataColumn(label: Text('Thao tác')),
               ],
               rows: _accounts.map(_accountRow).toList(),
             ),
@@ -419,6 +429,14 @@ class _AdminAccountsPageState extends State<AdminAccountsPage> {
       ),
       DataCell(_RolePill(role: account.role)),
       DataCell(_StatusPill(status: account.status)),
+      DataCell(
+        IconButton(
+          key: Key('reset-password-${account.identityCode}'),
+          tooltip: 'Đặt lại mật khẩu',
+          onPressed: () => _openResetPasswordDialog(account),
+          icon: const Icon(Icons.lock_reset_outlined),
+        ),
+      ),
     ],
   );
 
