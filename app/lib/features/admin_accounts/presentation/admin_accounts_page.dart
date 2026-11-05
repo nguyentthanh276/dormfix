@@ -6,6 +6,12 @@ import '../../../core/models/app_role.dart';
 import '../../../core/theme/app_colors.dart';
 import '../data/admin_accounts_repository.dart';
 import '../models/managed_account.dart';
+import 'create_technician_dialog.dart';
+import 'create_student_dialog.dart';
+import 'edit_student_dialog.dart';
+import 'revoke_account_dialog.dart';
+import 'restore_account_dialog.dart';
+import 'reset_password_dialog.dart';
 
 /// DF-028/029/030: danh sách, tìm kiếm và lọc tài khoản dành riêng cho Admin.
 class AdminAccountsPage extends StatefulWidget {
@@ -152,40 +158,134 @@ class _AdminAccountsPageState extends State<AdminAccountsPage> {
     );
   }
 
-  Widget _pageHeading(BuildContext context) => Row(
+  Future<void> _openCreateStudentDialog() async {
+    final created = await CreateStudentDialog.show(
+      context,
+      repository: widget.repository,
+    );
+    if (created == true && mounted) {
+      _load();
+    }
+  }
+
+  Future<void> _openCreateTechnicianDialog() async {
+    final created = await CreateTechnicianDialog.show(
+      context,
+      repository: widget.repository,
+    );
+    if (created == true && mounted) {
+      _load();
+    }
+  }
+
+  Future<void> _openEditStudentDialog(String identityCode) async {
+    final updated = await EditStudentDialog.show(
+      context,
+      repository: widget.repository,
+      identityCode: identityCode,
+    );
+    if (updated == true && mounted) {
+      _load();
+    }
+  }
+
+  Future<void> _openRevokeDialog(ManagedAccount account) async {
+    final revoked = await RevokeAccountDialog.show(
+      context,
+      repository: widget.repository,
+      account: account,
+    );
+    if (revoked == true && mounted) {
+      _load();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Tài khoản đã được thu hồi.')),
+      );
+    }
+  }
+
+  Future<void> _openRestoreDialog(ManagedAccount account) async {
+    final restored = await RestoreAccountDialog.show(
+      context,
+      repository: widget.repository,
+      account: account,
+    );
+    if (restored == true && mounted) {
+      _load();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Tài khoản đã được khôi phục.')),
+      );
+    }
+  }
+
+  Future<void> _openResetPasswordDialog(ManagedAccount account) async {
+    await ResetPasswordDialog.show(
+      context,
+      repository: widget.repository,
+      account: account,
+    );
+  }
+
+  Widget _pageHeading(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      Container(
-        width: 52,
-        height: 52,
-        decoration: BoxDecoration(
-          color: AppColors.primary.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: const Icon(
-          Icons.manage_accounts_outlined,
-          color: AppColors.primaryDark,
-          size: 28,
-        ),
-      ),
-      const SizedBox(width: 16),
-      Expanded(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Tài khoản',
-              style: Theme.of(context).textTheme.headlineSmall
-                  ?.copyWith(fontWeight: FontWeight.w700),
+      Row(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(16),
             ),
-            const SizedBox(height: 3),
-            Text(
-              'Danh sách Sinh viên và Kỹ thuật viên',
-              style: Theme.of(context).textTheme.bodyMedium
-                  ?.copyWith(color: Colors.black54),
+            child: const Icon(
+              Icons.manage_accounts_outlined,
+              color: AppColors.primaryDark,
+              size: 28,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Tài khoản',
+                  style: Theme.of(context).textTheme.headlineSmall
+                      ?.copyWith(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  'Danh sách Sinh viên và Kỹ thuật viên',
+                  style: Theme.of(context).textTheme.bodyMedium
+                      ?.copyWith(color: Colors.black54),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      if (widget.isAdmin) ...[
+        const SizedBox(height: 16),
+        Wrap(
+          alignment: WrapAlignment.end,
+          spacing: 12,
+          runSpacing: 8,
+          children: [
+            FilledButton.icon(
+              key: const Key('create-student-btn'),
+              onPressed: _openCreateStudentDialog,
+              icon: const Icon(Icons.person_add_alt_1_outlined),
+              label: const Text('Tạo tài khoản Sinh viên'),
+            ),
+            OutlinedButton.icon(
+              key: const Key('create-technician-btn'),
+              onPressed: _openCreateTechnicianDialog,
+              icon: const Icon(Icons.engineering_outlined),
+              label: const Text('Tạo tài khoản Kỹ thuật viên'),
             ),
           ],
         ),
-      ),
+      ],
     ],
   );
 
@@ -355,6 +455,7 @@ class _AdminAccountsPageState extends State<AdminAccountsPage> {
                 DataColumn(label: Text('Mã định danh')),
                 DataColumn(label: Text('Vai trò')),
                 DataColumn(label: Text('Trạng thái')),
+                DataColumn(label: Text('Thao tác')),
               ],
               rows: _accounts.map(_accountRow).toList(),
             ),
@@ -419,6 +520,42 @@ class _AdminAccountsPageState extends State<AdminAccountsPage> {
       ),
       DataCell(_RolePill(role: account.role)),
       DataCell(_StatusPill(status: account.status)),
+      DataCell(
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (account.status == AccountStatus.revoked)
+              IconButton(
+                key: Key('restore-account-${account.identityCode}'),
+                tooltip: 'Khôi phục tài khoản',
+                onPressed: () => _openRestoreDialog(account),
+                icon: const Icon(Icons.restore_outlined),
+              )
+            else ...[
+              if (account.role == AppRole.student)
+                IconButton(
+                  key: Key('edit-student-${account.identityCode}'),
+                  tooltip: 'Cập nhật Sinh viên',
+                  onPressed: () => _openEditStudentDialog(account.identityCode),
+                  icon: const Icon(Icons.edit_outlined),
+                ),
+              IconButton(
+                key: Key('revoke-account-${account.identityCode}'),
+                tooltip: 'Thu hồi tài khoản',
+                onPressed: () => _openRevokeDialog(account),
+                icon: const Icon(Icons.person_off_outlined),
+                color: Theme.of(context).colorScheme.error,
+              ),
+            ],
+            IconButton(
+              key: Key('reset-password-${account.identityCode}'),
+              tooltip: 'Đặt lại mật khẩu',
+              onPressed: () => _openResetPasswordDialog(account),
+              icon: const Icon(Icons.lock_reset_outlined),
+            ),
+          ],
+        ),
+      ),
     ],
   );
 

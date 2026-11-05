@@ -6,7 +6,7 @@ import 'core/config/app_config.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  final config = AppConfig.fromEnvironment();
+  final config = await AppConfig.fromEnvironment();
   String? backendError;
 
   if (!config.isConfigured) {

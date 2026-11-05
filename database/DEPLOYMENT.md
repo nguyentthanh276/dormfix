@@ -47,3 +47,39 @@ Chỉ authenticated được gọi get_my_profile(); hàm không nhận user ID.
 - Migration và `tests/014_student_notification_reads.sql` đạt PASS trong transaction rollback trước triển khai; regression chạy lại sau triển khai cũng đạt PASS. Không còn Auth user `@student-notification-test.invalid`.
 - Cả ba function pin `search_path` rỗng. Anon không được EXECUTE; helper không được cấp EXECUTE cho authenticated. Hai RPC kiểm tra Sinh viên active/đã đổi mật khẩu, khóa chia sẻ profile và chỉ đổi `read_at` của chính người nhận; client vẫn không có UPDATE trên bảng `notifications`.
 - Security advisor tiếp tục báo nhóm SECURITY DEFINER RPC chủ ý công khai và cấu hình Auth đã ghi ở mục 013; kiểm tra SQL xác minh role/quyền sở hữu/ACL. Chưa nối adapter Supabase vào luồng Sinh viên đang dùng mock; kiểm thử SQL/JWT mô phỏng và HTTP mock không thay thế đăng nhập thật hoặc giao dịch song song.
+
+## Tạo tài khoản Kỹ thuật viên — DF-032
+
+- Migration mới `016_admin_create_technician.sql` phụ thuộc helper Admin trong migration 015; cần xác minh trạng thái 015 trên project dùng chung trước khi áp dụng theo thứ tự.
+- Chưa có xác nhận triển khai 016 hoặc chạy `tests/016_admin_create_technician.sql` trên project Supabase. Migration chỉ được áp dụng sau khi trạng thái hiện tại đã kiểm tra để tránh chạy lại migration đã có.
+- Ứng dụng không cung cấp luồng đăng ký công khai. Nếu project không cho phép Auth self-signup, kiểm tra và tắt `Allow new users to sign up` trong Supabase Auth settings; migration SQL không thay đổi cấu hình Auth của project.
+
+## Cập nhật Sinh viên — DF-033
+
+- Migration mới `017_admin_update_student.sql` bổ sung RPC Admin đọc dữ liệu form và cập nhật tên, điện thoại, phòng; áp dụng sau 016.
+- Chưa xác nhận triển khai 017 hoặc chạy `tests/017_admin_update_student.sql` trên project Supabase. Migration chỉ cập nhật `profiles`, không chỉnh sửa yêu cầu/snapshot cũ.
+- Backend tạo request Sinh viên và repository Flutter hiện vẫn là mock. Khi luồng tạo thật được nối, server phải đọc phòng hiện tại qua `current_student_room()` trong transaction tạo request để request mới dùng phòng mới.
+
+## Thu hồi tài khoản — DF-036
+
+- Migration mới `018_admin_revoke_account.sql` phụ thuộc helper Admin từ 015 và các migration nghiệp vụ đến 017. Chưa xác nhận triển khai 018 hoặc chạy `tests/018_admin_revoke_account.sql` trên project Supabase.
+- Khi áp dụng, kiểm tra trạng thái các migration trước và chạy đúng thứ tự; migration thu hồi cập nhật `profiles.status`, `auth.users.banned_until` và `request_history` cùng transaction, không xóa Auth user/profile/request.
+- DF-048 đã có các RPC Admin xử lý yêu cầu `awaiting_confirmation` của Sinh viên bị thu hồi; regression DF-036 kiểm tra tiếp tục xử lý xác nhận và yêu cầu sửa lại.
+
+## Khôi phục tài khoản — DF-037
+
+- Migration mới `019_admin_restore_account.sql` phụ thuộc migration 018. Chưa xác nhận triển khai 019 hoặc chạy `tests/019_admin_restore_account.sql` trên project Supabase.
+- Student cần được gắn một phòng đang active; Kỹ thuật viên bị từ chối nếu còn bất kỳ request chưa kết thúc. Migration cập nhật Auth ban/profile trong cùng transaction, ghi lịch sử, không tạo lại tài khoản và không chỉnh sửa request/snapshot.
+- Sau restore, profile là `active`, nên hai RPC DF-048 không còn cho Admin xác nhận/yêu cầu sửa lại thay. Student confirmation hiện vẫn dùng mock/direct table path chưa được cấp quyền ghi; việc tự xác nhận request thật cần backend Student confirmation được nối trước khi xem luồng này là production-complete.
+
+## Đặt lại mật khẩu — DF-038
+
+- Migration mới `020_admin_reset_account_password.sql` phụ thuộc migration 019. Chưa xác nhận triển khai 020 hoặc chạy `tests/020_admin_reset_account_password.sql` trên project Supabase.
+- RPC sinh mật khẩu tạm, chỉ trả plaintext mới cho Admin nhận một lần; database lưu bcrypt hash, không trả hash hoặc mật khẩu cũ. Giữ nguyên account status, đặt `must_change_password=true`, xóa Auth sessions để refresh token cũ không dùng lại.
+- JWT access token đã phát hành có thể còn hiệu lực đến khi hết hạn; trong thời gian đó, các nghiệp vụ database vẫn bị chặn bởi cờ `must_change_password`. Frontend hiện hiển thị màn đổi mật khẩu sau khi nạp lại profile.
+
+## Đặt lại mật khẩu — DF-038
+
+- Migration mới `020_admin_reset_account_password.sql` áp dụng sau 019. Chưa xác nhận triển khai 020 hoặc chạy `tests/020_admin_reset_account_password.sql` trên project Supabase.
+- RPC chỉ trả mật khẩu tạm plaintext mới cho Admin nhận một lần; database lưu bcrypt hash, bật `must_change_password` và xóa các dòng `auth.sessions` của user để refresh token cũ bị cascade-revoke. Hash/mật khẩu cũ không có trong response.
+- Giữ nguyên role/status tài khoản. JWT access token stateless đã phát hành vẫn có thể hợp lệ đến khi hết hạn; các RPC nghiệp vụ phải tiếp tục kiểm tra `must_change_password`.

@@ -12,6 +12,18 @@ DF-027 thêm lịch sử từng lần phân công và thông báo trong ứng d�
 
 DF-017 thêm hai RPC đánh dấu đọc thông báo Sinh viên trong `014_student_notification_reads.sql`, áp dụng một lần sau 013. Chỉ Sinh viên active/đã đổi mật khẩu được sửa `read_at` của thông báo chính chủ bằng thời gian server; giữ nguyên thời gian đã đọc và không cấp quyền ghi bảng trực tiếp. Hợp đồng tại `../docs/student-notifications-contract.md`, regression rollback tại `tests/014_student_notification_reads.sql`. Migration 014 đã triển khai ngày 03/11/2026, ghi nhận tại `DEPLOYMENT.md`; ứng dụng Sinh viên vẫn dùng mock cho cả yêu cầu và thông báo.
 
+DF-031 thêm RPC Admin tạo tài khoản Sinh viên và gắn phòng trong `015_admin_create_student.sql`. Migration bổ sung RPC `admin_create_student(...)` đồng bộ Auth user/profile, mật khẩu tạm bắt buộc đổi lần đầu, `admin_get_active_rooms()` và trigger chống sửa đổi mã/email. Test rollback tại `tests/015_admin_create_student.sql`.
+
+DF-032 thêm RPC Admin tạo tài khoản Kỹ thuật viên trong `016_admin_create_technician.sql`, áp dụng sau 015. RPC chỉ cho Admin active gọi, tạo Auth user/profile cùng transaction, từ chối mã/email đã tồn tại kể cả hồ sơ thu hồi, yêu cầu số điện thoại hợp lệ và bắt đổi mật khẩu lần đầu. SQL regression rollback tại `tests/016_admin_create_technician.sql`. Ứng dụng không có luồng đăng ký công khai; nếu chính sách project không cho phép bất kỳ tự đăng ký nào, phải tắt `Allow new users to sign up` trong Supabase Auth settings vì cài đặt này nằm ngoài SQL migration.
+
+DF-033 thêm RPC Admin đọc và cập nhật Sinh viên trong `017_admin_update_student.sql`, áp dụng sau 016. Chỉ tên, số điện thoại và phòng được gửi lên RPC cập nhật; email/mã định danh không phải tham số. Phòng mới phải đang hoạt động. Update chỉ đổi `profiles.room_id`, không sửa yêu cầu cũ; `repair_requests` giữ `room_id` và snapshot đã lưu. SQL regression rollback tại `tests/017_admin_update_student.sql`. Khi triển khai RPC tạo request thật, phải lấy phòng từ `current_student_room()` tại thời điểm tạo. Luồng tạo request Flutter hiện vẫn là mock.
+
+DF-036 thêm RPC Admin thu hồi Sinh viên/Kỹ thuật viên trong `018_admin_revoke_account.sql`, áp dụng sau 017. RPC yêu cầu lý do, khóa profile và Auth user, ghi Admin/thời gian/lý do vào `request_history`, không xóa dữ liệu. Chặn thu hồi Kỹ thuật viên còn request chưa kết thúc (mọi trạng thái trừ completed/rejected/cancelled, gồm awaiting_rework); Sinh viên có request vẫn thu hồi được. SQL regression rollback tại `tests/018_admin_revoke_account.sql`. Khóa/mở khóa, khôi phục và đặt lại mật khẩu vẫn là các chức năng riêng.
+
+DF-037 thêm RPC Admin khôi phục trong `019_admin_restore_account.sql`, áp dụng sau 018. RPC mở lại Auth/profile hiện hữu và ghi lịch sử, không tạo user mới. Sinh viên bắt buộc được gắn vào phòng active; Technician phải còn hợp lệ và không có request chưa kết thúc. Request và snapshot không bị cập nhật. Sau restore, hai RPC DF-048 từ chối Admin xử lý thay vì tài khoản phải ở active; việc Sinh viên tự xác nhận vẫn cần luồng request thật, hiện Flutter dùng mock và chưa có RPC ghi Student confirmation. SQL regression rollback tại `tests/019_admin_restore_account.sql`.
+
+DF-038 thêm RPC Admin reset mật khẩu trong `020_admin_reset_account_password.sql`, áp dụng sau 019. Server sinh mật khẩu tạm, lưu bcrypt hash, bật `must_change_password`, xóa Auth sessions/refresh tokens cũ và ghi lịch sử; chỉ mật khẩu tạm mới được trả về để Admin cấp cho người dùng, không trả hash hoặc mật khẩu cũ. Trạng thái active/locked/revoked được giữ nguyên. SQL regression rollback tại `tests/020_admin_reset_account_password.sql`.
+
 ## Các quyết định dữ liệu
 
 - Supabase Auth lưu mật khẩu. Một tài khoản Auth liên kết một profile.
@@ -61,7 +73,7 @@ Luồng chính: pending → assigned → in_progress → awaiting_confirmation �
 
 1. Hàm tạo tài khoản và profile bằng quyền server, đồng bộ email Auth/profile, tạo Admin ban đầu. Chặn đổi email tại Auth và profile, đổi mã định danh và tự nâng quyền. Không lưu mật khẩu tạm trong bảng.
 2. Endpoint đọc đầy đủ hồ sơ chính chủ và danh sách tài khoản Admin; endpoint cập nhật số điện thoại chính chủ. Bảng profiles chỉ cấp quyền đọc id/full_name/phone để tránh lộ thông tin quản trị và email người khác.
-3. Hàm quản trị tài khoản: khóa, thu hồi, khôi phục, đặt lại mật khẩu; kiểm tra Kỹ thuật viên còn công việc chưa hoàn tất trong transaction, chặn phiên cũ, ghi lý do và lịch sử. must_change_password chỉ server được xác nhận sau khi đổi thành công.
+3. Hàm quản trị tài khoản: khóa/mở khóa; kiểm tra Kỹ thuật viên còn công việc chưa hoàn tất trong transaction, chặn phiên cũ, ghi lý do và lịch sử. Thu hồi/khôi phục/reset đã được bổ sung trong migrations 018-020. must_change_password chỉ server được xác nhận sau khi đổi thành công.
 4. Hàm tạo/sửa/hủy/phân công/chuyển giao/bắt đầu/tiếp tục/báo kết quả/xác nhận/sửa lại/mở lại: khóa bản ghi yêu cầu, kiểm tra role/status/version, cập nhật lịch sử và thông báo cùng transaction. Kiểm tra tài khoản và danh mục/phòng hiện tại. Không cho ghi trạng thái trực tiếp từ Flutter.
 5. Endpoint lịch sử phân công đầy đủ cho Admin/chính chủ/người hiện được giao; người cũ chỉ đọc các cột tóm tắt đã cấp. Cập nhật title_snapshot khi chuyển giao để thông tin tóm tắt không bị cập nhật về sau.
 6. Chính sách Storage private theo quyền yêu cầu; kiểm tra giới hạn 5 ảnh mỗi nhóm bằng transaction và metadata thực tế của object. Ảnh/kết quả/phản hồi đã gửi không được sửa; ảnh nội dung hiện tại có thể thay khi pending, không ảnh hưởng ảnh phản hồi cũ.
