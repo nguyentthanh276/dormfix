@@ -2,12 +2,14 @@ import 'package:dormfix/features/admin_accounts/data/admin_accounts_repository.d
 import 'package:dormfix/features/admin_accounts/data/mock_admin_accounts_repository.dart';
 import 'package:dormfix/features/admin_accounts/models/managed_account.dart';
 import 'package:dormfix/features/admin_accounts/presentation/admin_accounts_page.dart';
+import 'package:dormfix/features/admin_rooms/models/admin_room.dart';
 import 'package:dormfix/core/models/app_role.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class _AccountsRepository implements AdminAccountsRepository {
   int calls = 0;
+
   @override
   Future<List<ManagedAccount>> list({
     required String query,
@@ -19,6 +21,54 @@ class _AccountsRepository implements AdminAccountsRepository {
     calls++;
     return const [];
   }
+
+  @override
+  Future<CreatedStudentResult> createStudent({
+    required String identityCode,
+    required String fullName,
+    required String email,
+    required String phone,
+    required String roomId,
+    String? temporaryPassword,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<CreatedTechnicianResult> createTechnician({
+    required String identityCode,
+    required String fullName,
+    required String email,
+    required String phone,
+    String? temporaryPassword,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<StudentAccountEditDetails> getStudentForEdit(String identityCode) =>
+      throw UnimplementedError();
+
+  @override
+  Future<void> updateStudent({
+    required String identityCode,
+    required String fullName,
+    required String phone,
+    required String roomId,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<void> revokeAccount({
+    required String identityCode,
+    required String reason,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<void> restoreAccount({required String identityCode, String? roomId}) =>
+      throw UnimplementedError();
+
+  @override
+  Future<ResetPasswordResult> resetPassword({required String identityCode}) =>
+      throw UnimplementedError();
+
+  @override
+  Future<List<AdminRoom>> getActiveRooms() => throw UnimplementedError();
 }
 
 void main() {
