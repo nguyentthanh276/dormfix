@@ -63,7 +63,7 @@ class _ActiveChangePasswordPageState extends State<ActiveChangePasswordPage> {
     appBar: AppBar(title: const Text('Đổi mật khẩu')),
     body: Center(
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 440),
           child: AnimatedBuilder(
@@ -76,23 +76,23 @@ class _ActiveChangePasswordPageState extends State<ActiveChangePasswordPage> {
                 children: [
                   Icon(
                     Icons.lock_reset_outlined,
-                    size: 64,
+                    size: 48,
                     color: Theme.of(context).colorScheme.primary,
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 8),
                   Text(
                     'Đổi mật khẩu',
                     style: Theme.of(context).textTheme.headlineSmall,
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 4),
                   Text(
                     'Nhập mật khẩu hiện tại và mật khẩu mới để tăng cường bảo mật tài khoản.',
                     style: Theme.of(context).textTheme.bodyMedium
                         ?.copyWith(color: Colors.black87),
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 16),
                   TextFormField(
                     key: const Key('current-password-input'),
                     controller: _currentPasswordController,
@@ -101,6 +101,7 @@ class _ActiveChangePasswordPageState extends State<ActiveChangePasswordPage> {
                     textInputAction: TextInputAction.next,
                     autofillHints: const [AutofillHints.password],
                     onChanged: (_) {
+                      setState(() {});
                       if (widget.controller.error != null) {
                         widget.controller.clearError();
                       }
@@ -127,7 +128,7 @@ class _ActiveChangePasswordPageState extends State<ActiveChangePasswordPage> {
                     ),
                     validator: PasswordRules.validateCurrentPassword,
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
                   TextFormField(
                     key: const Key('new-password-input'),
                     controller: _newPasswordController,
@@ -136,6 +137,7 @@ class _ActiveChangePasswordPageState extends State<ActiveChangePasswordPage> {
                     textInputAction: TextInputAction.next,
                     autofillHints: const [AutofillHints.newPassword],
                     onChanged: (_) {
+                      setState(() {});
                       if (widget.controller.error != null) {
                         widget.controller.clearError();
                       }
@@ -165,7 +167,43 @@ class _ActiveChangePasswordPageState extends State<ActiveChangePasswordPage> {
                       currentPassword: _currentPasswordController.text,
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 6),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: Wrap(
+                      spacing: 12,
+                      runSpacing: 4,
+                      children: [
+                        _PasswordRequirementItem(
+                          isMet: PasswordRules.hasMinLength(
+                            _newPasswordController.text,
+                          ),
+                          text: '≥6 ký tự',
+                        ),
+                        _PasswordRequirementItem(
+                          isMet: PasswordRules.hasLetter(
+                            _newPasswordController.text,
+                          ),
+                          text: 'Có chữ cái',
+                        ),
+                        _PasswordRequirementItem(
+                          isMet: PasswordRules.hasDigit(
+                            _newPasswordController.text,
+                          ),
+                          text: 'Có chữ số',
+                        ),
+                        _PasswordRequirementItem(
+                          isMet:
+                              _currentPasswordController.text.isNotEmpty &&
+                              _newPasswordController.text.isNotEmpty &&
+                              _newPasswordController.text !=
+                                  _currentPasswordController.text,
+                          text: 'Khác mật khẩu cũ',
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
                   TextFormField(
                     key: const Key('confirm-password-input'),
                     controller: _confirmPasswordController,
@@ -238,4 +276,35 @@ class _ActiveChangePasswordPageState extends State<ActiveChangePasswordPage> {
       ),
     ),
   );
+}
+
+class _PasswordRequirementItem extends StatelessWidget {
+  const _PasswordRequirementItem({required this.isMet, required this.text});
+
+  final bool isMet;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isMet ? Colors.green.shade700 : Colors.black45;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          isMet ? Icons.check_circle_outline : Icons.radio_button_unchecked,
+          size: 13,
+          color: color,
+        ),
+        const SizedBox(width: 4),
+        Text(
+          text,
+          style: TextStyle(
+            fontSize: 11,
+            color: color,
+            fontWeight: isMet ? FontWeight.w500 : FontWeight.normal,
+          ),
+        ),
+      ],
+    );
+  }
 }

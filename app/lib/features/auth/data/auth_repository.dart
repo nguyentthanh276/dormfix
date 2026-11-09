@@ -108,6 +108,17 @@ class SupabaseAuthRepository implements AuthRepository {
     try {
       await _client.auth.updateUser(UserAttributes(password: newPassword));
     } on AuthException catch (error) {
+      if (error.statusCode == '400' ||
+          error.statusCode == '422' ||
+          error.code == 'weak_password') {
+        throw const AuthFailure('Mật khẩu mới không hợp lệ hoặc quá yếu.');
+      }
+      if (error.message.toLowerCase().contains('different from the old') ||
+          error.code == 'same_password') {
+        throw const AuthFailure(
+          'Mật khẩu mới không được trùng với mật khẩu cũ.',
+        );
+      }
       throw AuthFailure(
         error.message.isNotEmpty
             ? error.message
@@ -119,10 +130,18 @@ class SupabaseAuthRepository implements AuthRepository {
       );
     }
 
+    if (_client.auth.currentSession?.user.id != expectedUserId) {
+      throw _sessionChangedFailure;
+    }
+
     try {
       await _client.rpc('complete_change_password');
     } catch (_) {
       // Backend RPC might not be deployed yet in early dev/test environment
+    }
+
+    if (_client.auth.currentSession?.user.id != expectedUserId) {
+      throw _sessionChangedFailure;
     }
 
     try {
