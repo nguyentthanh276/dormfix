@@ -46,6 +46,14 @@ class SupabaseProfileRepository implements ProfileRepository {
           signOutRequired: true,
         );
       }
+      if (error.code == 'PGRST202' ||
+          error.code == '42883' ||
+          error.message.toLowerCase().contains('schema cache') ||
+          error.message.toLowerCase().contains('get_my_profile')) {
+        throw const ProfileFailure(
+          'Dịch vụ thông tin hồ sơ tạm thời chưa khả dụng. Vui lòng liên hệ quản trị viên.',
+        );
+      }
       throw const ProfileFailure(
         'Không thể tải hồ sơ do lỗi kết nối. Vui lòng thử lại.',
       );
@@ -98,10 +106,26 @@ class SupabaseProfileRepository implements ProfileRepository {
       if (error.code == '22023') {
         throw const ProfileFailure('Vui lòng nhập số điện thoại hợp lệ.');
       }
-      throw ProfileFailure(
-        error.message.isNotEmpty
-            ? error.message
-            : 'Không thể cập nhật số điện thoại lúc này. Vui lòng thử lại.',
+      if (error.code == 'PGRST202' ||
+          error.code == '42883' ||
+          error.message.toLowerCase().contains('schema cache') ||
+          error.message.toLowerCase().contains('update_my_phone')) {
+        throw const ProfileFailure(
+          'Chức năng cập nhật số điện thoại tạm thời chưa khả dụng trên hệ thống. Vui lòng liên hệ quản trị viên để cập nhật cấu hình.',
+        );
+      }
+      if (error.code == '42501') {
+        throw const ProfileFailure(
+          'Bạn không có quyền cập nhật số điện thoại cho tài khoản này.',
+        );
+      }
+      if (error.code == '23505') {
+        throw const ProfileFailure(
+          'Số điện thoại này đã được sử dụng bởi một tài khoản khác.',
+        );
+      }
+      throw const ProfileFailure(
+        'Không thể cập nhật số điện thoại lúc này. Vui lòng thử lại sau.',
       );
     } on ProfileFailure {
       rethrow;

@@ -2,6 +2,18 @@
 abstract final class PasswordRules {
   static const minLength = 6;
 
+  /// Kiểm tra xem mật khẩu có đạt độ dài tối thiểu hay không.
+  static bool hasMinLength(String? value) =>
+      value != null && value.length >= minLength;
+
+  /// Kiểm tra xem mật khẩu có chứa chữ cái hay không.
+  static bool hasLetter(String? value) =>
+      value != null && RegExp(r'[a-zA-Z]').hasMatch(value);
+
+  /// Kiểm tra xem mật khẩu có chứa chữ số hay không.
+  static bool hasDigit(String? value) =>
+      value != null && RegExp(r'[0-9]').hasMatch(value);
+
   /// Kiểm tra mật khẩu hiện tại: bắt buộc nhập.
   static String? validateCurrentPassword(String? value) {
     if (value == null || value.isEmpty) {

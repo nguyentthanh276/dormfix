@@ -54,6 +54,7 @@ class AuthController extends ChangeNotifier {
   bool get isLoading => _isLoading;
 
   Future<void> restoreSession() async {
+    _isExplicitSignOut = false;
     final repository = _repository;
     if (repository == null) {
       _setState(AuthViewState.unavailable);
@@ -98,6 +99,8 @@ class AuthController extends ChangeNotifier {
   }
 
   Future<void> signIn({required String email, required String password}) async {
+    if (_isLoading) return;
+    _isExplicitSignOut = false;
     final repository = _repository;
     if (repository == null) {
       _error = 'Dịch vụ xác thực chưa được cấu hình.';
@@ -134,6 +137,7 @@ class AuthController extends ChangeNotifier {
   }
 
   Future<void> signOut() async {
+    if (_isLoading) return;
     final repository = _repository;
     if (repository == null) return;
 
@@ -150,12 +154,12 @@ class AuthController extends ChangeNotifier {
       _error = 'Đăng xuất không thành công. Vui lòng thử lại.';
     } finally {
       _isLoading = false;
-      _isExplicitSignOut = false;
       notifyListeners();
     }
   }
 
   Future<void> changeTemporaryPassword({required String newPassword}) async {
+    if (_isLoading) return;
     final repository = _repository;
     if (repository == null) {
       _error = 'Dịch vụ xác thực chưa được cấu hình.';
@@ -192,6 +196,7 @@ class AuthController extends ChangeNotifier {
     required String currentPassword,
     required String newPassword,
   }) async {
+    if (_isLoading) return false;
     final repository = _repository;
     if (repository == null) {
       _error = 'Dịch vụ xác thực chưa được cấu hình.';
