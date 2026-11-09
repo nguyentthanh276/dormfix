@@ -339,6 +339,52 @@ void main() {
         await repository.dispose();
       },
     );
+
+    testWidgets(
+      'validateNewPassword on form shows error if new password equals current password',
+      (tester) async {
+        final repository = _FakeActivePasswordRepository(
+          _authenticatedProfile(),
+        );
+        final controller = AuthController(repository: repository);
+        await controller.restoreSession();
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: AppTheme.light,
+            home: ActiveChangePasswordPage(controller: controller),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.enterText(
+          find.byKey(const Key('current-password-input')),
+          'samePassword123',
+        );
+        await tester.enterText(
+          find.byKey(const Key('new-password-input')),
+          'samePassword123',
+        );
+        await tester.enterText(
+          find.byKey(const Key('confirm-password-input')),
+          'samePassword123',
+        );
+
+        await tester.tap(
+          find.byKey(const Key('active-change-password-submit-btn')),
+        );
+        await tester.pumpAndSettle();
+
+        expect(
+          find.text('Mật khẩu mới không được trùng với mật khẩu hiện tại.'),
+          findsOneWidget,
+        );
+        expect(repository.lastNewPassword, isNull);
+
+        controller.dispose();
+        await repository.dispose();
+      },
+    );
   });
 }
 

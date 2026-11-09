@@ -9,6 +9,8 @@ import 'package:dormfix/features/auth/presentation/auth_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'helpers/technician_jobs_fakes.dart';
+
 void main() {
   group('PasswordRules (DF-003 validation)', () {
     test('validateNewPassword checks empty and min length', () {
@@ -45,6 +47,15 @@ void main() {
         PasswordRules.validateConfirmPassword('secret123', 'secret123'),
         isNull,
       );
+    });
+
+    test('hasMinLength, hasLetter, hasDigit helpers work properly', () {
+      expect(PasswordRules.hasMinLength('12345'), isFalse);
+      expect(PasswordRules.hasMinLength('123456'), isTrue);
+      expect(PasswordRules.hasLetter('123456'), isFalse);
+      expect(PasswordRules.hasLetter('12345a'), isTrue);
+      expect(PasswordRules.hasDigit('abcdef'), isFalse);
+      expect(PasswordRules.hasDigit('abcde1'), isTrue);
     });
   });
 
@@ -112,6 +123,59 @@ void main() {
         controller.error,
         contains('Không thể đổi mật khẩu do lỗi kết nối'),
       );
+      controller.dispose();
+      await repository.dispose();
+    });
+
+    test('signs out and surfaces error if account is locked during password change', () async {
+      final repository =
+          _FakePasswordAuthRepository(
+              _testProfile(mustChangePassword: true, canAccess: false),
+            )
+            ..profileAfterChange = _testProfile(
+              status: 'locked',
+              mustChangePassword: false,
+              canAccess: false,
+            );
+
+      final controller = AuthController(repository: repository);
+      await controller.signIn(email: 'student@example.com', password: 'temp');
+      expect(controller.state, AuthViewState.changePasswordRequired);
+
+      await controller.changeTemporaryPassword(newPassword: 'newSecret123');
+
+      expect(controller.state, AuthViewState.signedOut);
+      expect(
+        controller.error,
+        'Tài khoản đang bị khóa và không được phép truy cập.',
+      );
+      expect(repository.hasSession, isFalse);
+
+      controller.dispose();
+      await repository.dispose();
+    });
+
+    test('signs out and surfaces error if account is revoked during password change', () async {
+      final repository =
+          _FakePasswordAuthRepository(
+              _testProfile(mustChangePassword: true, canAccess: false),
+            )
+            ..profileAfterChange = _testProfile(
+              status: 'revoked',
+              mustChangePassword: false,
+              canAccess: false,
+            );
+
+      final controller = AuthController(repository: repository);
+      await controller.signIn(email: 'student@example.com', password: 'temp');
+      expect(controller.state, AuthViewState.changePasswordRequired);
+
+      await controller.changeTemporaryPassword(newPassword: 'newSecret123');
+
+      expect(controller.state, AuthViewState.signedOut);
+      expect(controller.error, 'Quyền truy cập tài khoản đã bị thu hồi.');
+      expect(repository.hasSession, isFalse);
+
       controller.dispose();
       await repository.dispose();
     });
@@ -238,11 +302,293 @@ void main() {
 
       await repository.dispose();
     });
+
+    testWidgets(
+      'shows change password form on login and unlocks technician home after success',
+      (tester) async {
+        final repository = _FakePasswordAuthRepository(
+          _testProfile(
+            role: AppRole.technician,
+            mustChangePassword: true,
+            canAccess: false,
+          ),
+        );
+        final fakeJobsRepo = TechnicianTestJobsRepository();
+
+        await tester.pumpWidget(
+          DormFixApp(
+            authRepository: repository,
+            technicianJobsRepository: fakeJobsRepo,
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.enterText(
+          find.byType(TextFormField).at(0),
+          'tech@example.com',
+        );
+        await tester.enterText(
+          find.byType(TextFormField).at(1),
+          'tempPassword',
+        );
+        await tester.tap(find.text('Đăng nhập'));
+        await tester.pumpAndSettle();
+
+        // Bị chặn tại ChangePasswordPage
+        expect(find.text('Đổi mật khẩu tạm'), findsWidgets);
+        expect(find.text('Công việc của tôi'), findsNothing);
+
+        await tester.enterText(
+          find.byKey(const Key('new-password-input')),
+          'newTechPass123',
+        );
+        await tester.enterText(
+          find.byKey(const Key('confirm-password-input')),
+          'newTechPass123',
+        );
+        await tester.tap(find.byKey(const Key('change-password-submit-btn')));
+        await tester.pumpAndSettle();
+
+        // Mở khóa màn hình Kỹ thuật viên
+        expect(find.text('DormFix - Kỹ thuật viên'), findsOneWidget);
+        expect(find.text('Đổi mật khẩu tạm'), findsNothing);
+
+        await repository.dispose();
+      },
+    );
+
+    testWidgets(
+      'toggles visibility independently for new password and confirm password fields',
+      (tester) async {
+        final repository = _FakePasswordAuthRepository(
+          _testProfile(mustChangePassword: true, canAccess: false),
+        );
+
+        await tester.pumpWidget(DormFixApp(authRepository: repository));
+        await tester.pumpAndSettle();
+
+        await tester.enterText(
+          find.byType(TextFormField).at(0),
+          'user@example.com',
+        );
+        await tester.enterText(
+          find.byType(TextFormField).at(1),
+          'tempPassword',
+        );
+        await tester.tap(find.text('Đăng nhập'));
+        await tester.pumpAndSettle();
+
+        // Ban đầu cả 2 ô đều ẩn (obscureText = true)
+        expect(
+          tester
+              .widget<EditableText>(
+                find.descendant(
+                  of: find.byKey(const Key('new-password-input')),
+                  matching: find.byType(EditableText),
+                ),
+              )
+              .obscureText,
+          isTrue,
+        );
+        expect(
+          tester
+              .widget<EditableText>(
+                find.descendant(
+                  of: find.byKey(const Key('confirm-password-input')),
+                  matching: find.byType(EditableText),
+                ),
+              )
+              .obscureText,
+          isTrue,
+        );
+
+        // Bấm toggle nút hiện mật khẩu ô 1
+        await tester.tap(find.byKey(const Key('new-password-visibility-btn')));
+        await tester.pumpAndSettle();
+
+        expect(
+          tester
+              .widget<EditableText>(
+                find.descendant(
+                  of: find.byKey(const Key('new-password-input')),
+                  matching: find.byType(EditableText),
+                ),
+              )
+              .obscureText,
+          isFalse,
+        );
+        expect(
+          tester
+              .widget<EditableText>(
+                find.descendant(
+                  of: find.byKey(const Key('confirm-password-input')),
+                  matching: find.byType(EditableText),
+                ),
+              )
+              .obscureText,
+          isTrue,
+        );
+
+        // Bấm toggle nút hiện mật khẩu ô 2
+        await tester.tap(
+          find.byKey(const Key('confirm-password-visibility-btn')),
+        );
+        await tester.pumpAndSettle();
+
+        expect(
+          tester
+              .widget<EditableText>(
+                find.descendant(
+                  of: find.byKey(const Key('confirm-password-input')),
+                  matching: find.byType(EditableText),
+                ),
+              )
+              .obscureText,
+          isFalse,
+        );
+
+        await repository.dispose();
+      },
+    );
+
+    testWidgets(
+      'submitting via onFieldSubmitted on confirm password input triggers password change',
+      (tester) async {
+        final repository = _FakePasswordAuthRepository(
+          _testProfile(mustChangePassword: true, canAccess: false),
+        );
+
+        await tester.pumpWidget(DormFixApp(authRepository: repository));
+        await tester.pumpAndSettle();
+
+        await tester.enterText(
+          find.byType(TextFormField).at(0),
+          'student@example.com',
+        );
+        await tester.enterText(
+          find.byType(TextFormField).at(1),
+          'tempPassword',
+        );
+        await tester.tap(find.text('Đăng nhập'));
+        await tester.pumpAndSettle();
+
+        await tester.enterText(
+          find.byKey(const Key('new-password-input')),
+          'newSecret123',
+        );
+        await tester.enterText(
+          find.byKey(const Key('confirm-password-input')),
+          'newSecret123',
+        );
+        // Nhấn Done/Enter trên bàn phím (field submitted)
+        await tester.testTextInput.receiveAction(TextInputAction.done);
+        await tester.pumpAndSettle();
+
+        expect(repository.lastNewPassword, 'newSecret123');
+        expect(find.text('Yêu cầu của tôi'), findsOneWidget);
+
+        await repository.dispose();
+      },
+    );
+
+    testWidgets(
+      'allows signing out directly from bottom logout button on ChangePasswordPage',
+      (tester) async {
+        final repository = _FakePasswordAuthRepository(
+          _testProfile(mustChangePassword: true, canAccess: false),
+        );
+
+        await tester.pumpWidget(DormFixApp(authRepository: repository));
+        await tester.pumpAndSettle();
+
+        await tester.enterText(
+          find.byType(TextFormField).at(0),
+          'student@example.com',
+        );
+        await tester.enterText(
+          find.byType(TextFormField).at(1),
+          'tempPassword',
+        );
+        await tester.tap(find.text('Đăng nhập'));
+        await tester.pumpAndSettle();
+
+        // Bấm nút Hủy & Đăng xuất dưới form
+        await tester.ensureVisible(
+          find.byKey(const Key('change-password-bottom-logout-btn')),
+        );
+        await tester.tap(
+          find.byKey(const Key('change-password-bottom-logout-btn')),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Đăng nhập DormFix'), findsOneWidget);
+
+        await repository.dispose();
+      },
+    );
+
+    testWidgets(
+      'clears error when typing in new password or confirm password field',
+      (tester) async {
+        final repository =
+            _FakePasswordAuthRepository(
+                _testProfile(mustChangePassword: true, canAccess: false),
+              )
+              ..changePasswordFailure = const AuthFailure(
+                'Mật khẩu không đáp ứng chính sách bảo mật.',
+              );
+
+        await tester.pumpWidget(DormFixApp(authRepository: repository));
+        await tester.pumpAndSettle();
+
+        await tester.enterText(
+          find.byType(TextFormField).at(0),
+          'student@example.com',
+        );
+        await tester.enterText(
+          find.byType(TextFormField).at(1),
+          'tempPassword',
+        );
+        await tester.tap(find.text('Đăng nhập'));
+        await tester.pumpAndSettle();
+
+        await tester.enterText(
+          find.byKey(const Key('new-password-input')),
+          'newSecret123',
+        );
+        await tester.enterText(
+          find.byKey(const Key('confirm-password-input')),
+          'newSecret123',
+        );
+        await tester.tap(find.byKey(const Key('change-password-submit-btn')));
+        await tester.pumpAndSettle();
+
+        expect(
+          find.text('Mật khẩu không đáp ứng chính sách bảo mật.'),
+          findsOneWidget,
+        );
+
+        // Gõ thêm vào ô mật khẩu mới -> Lỗi biến mất
+        await tester.enterText(
+          find.byKey(const Key('new-password-input')),
+          'newSecret1234',
+        );
+        await tester.pumpAndSettle();
+
+        expect(
+          find.text('Mật khẩu không đáp ứng chính sách bảo mật.'),
+          findsNothing,
+        );
+
+        await repository.dispose();
+      },
+    );
   });
 }
 
 UserProfile _testProfile({
   AppRole role = AppRole.student,
+  String status = 'active',
   bool mustChangePassword = false,
   bool canAccess = true,
 }) => UserProfile(
@@ -252,7 +598,7 @@ UserProfile _testProfile({
   email: 'student@example.com',
   phone: '0901234567',
   role: role,
-  status: 'active',
+  status: status,
   room: null,
   mustChangePassword: mustChangePassword,
   canAccess: canAccess,
@@ -279,6 +625,7 @@ class _FakePasswordAuthRepository implements AuthRepository {
 
   String? lastNewPassword;
   Object? changePasswordFailure;
+  UserProfile? profileAfterChange;
 
   @override
   Future<UserProfile> signIn({
@@ -302,7 +649,8 @@ class _FakePasswordAuthRepository implements AuthRepository {
     lastNewPassword = newPassword;
     final failure = changePasswordFailure;
     if (failure != null) throw failure;
-    return profile.copyWith(mustChangePassword: false, canAccess: true);
+    return profileAfterChange ??
+        profile.copyWith(mustChangePassword: false, canAccess: true);
   }
 
   @override

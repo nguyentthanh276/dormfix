@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:dormfix/core/models/app_role.dart';
 import 'package:dormfix/core/theme/app_theme.dart';
@@ -13,6 +14,9 @@ import 'package:dormfix/features/profile/presentation/profile_page.dart';
 import 'package:dormfix/features/technician_jobs/presentation/technician_home_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'helpers/technician_jobs_fakes.dart';
 
@@ -56,6 +60,20 @@ void main() {
         expect(PhoneRules.validatePhone('0000000001'), isNull);
         expect(PhoneRules.validatePhone('+84901234567'), isNull);
         expect(PhoneRules.validatePhone('  0901234567  '), isNull);
+        expect(PhoneRules.validatePhone('090 123 4567'), isNull);
+        expect(PhoneRules.validatePhone('090-123-4567'), isNull);
+        expect(PhoneRules.validatePhone('+84 901 234 567'), isNull);
+      },
+    );
+
+    test(
+      'normalize trims and strips dashes, dots and spaces from phone numbers',
+      () {
+        expect(PhoneRules.normalize(' 090 123 4567 '), '0901234567');
+        expect(PhoneRules.normalize('090-123-4567'), '0901234567');
+        expect(PhoneRules.normalize('090.123.4567'), '0901234567');
+        expect(PhoneRules.normalize(' +84 901-234-567 '), '+84901234567');
+        expect(PhoneRules.normalize(null), '');
       },
     );
   });
@@ -142,6 +160,65 @@ void main() {
       await authRepo.dispose();
     });
 
+    test('surfaces friendly message when schema cache / RPC function is missing (DF-006, DF-019)', () async {
+      final authRepo = _FakeAuthRepo(_studentProfile());
+      final authController = AuthController(repository: authRepo);
+      await authController.restoreSession();
+
+      final profileRepo = _FakeProfileRepo()
+        ..failure = const ProfileFailure(
+          'Chức năng cập nhật số điện thoại tạm thời chưa khả dụng trên hệ thống. Vui lòng liên hệ quản trị viên để cập nhật cấu hình.',
+        );
+      final controller = ProfileController(
+        authController: authController,
+        repository: profileRepo,
+      );
+
+      final success = await controller.updatePhone('0909999999');
+
+      expect(success, isFalse);
+      expect(
+        controller.error,
+        'Chức năng cập nhật số điện thoại tạm thời chưa khả dụng trên hệ thống. Vui lòng liên hệ quản trị viên để cập nhật cấu hình.',
+      );
+      expect(authController.state, AuthViewState.authenticated);
+
+      controller.dispose();
+      authController.dispose();
+      await authRepo.dispose();
+    });
+
+    test(
+      'surfaces friendly message when schema cache / RPC function is missing (DF-006, DF-019)',
+      () async {
+        final authRepo = _FakeAuthRepo(_studentProfile());
+        final authController = AuthController(repository: authRepo);
+        await authController.restoreSession();
+
+        final profileRepo = _FakeProfileRepo()
+          ..failure = const ProfileFailure(
+            'Chức năng cập nhật số điện thoại tạm thời chưa khả dụng trên hệ thống. Vui lòng liên hệ quản trị viên để cập nhật cấu hình.',
+          );
+        final controller = ProfileController(
+          authController: authController,
+          repository: profileRepo,
+        );
+
+        final success = await controller.updatePhone('0909999999');
+
+        expect(success, isFalse);
+        expect(
+          controller.error,
+          'Chức năng cập nhật số điện thoại tạm thời chưa khả dụng trên hệ thống. Vui lòng liên hệ quản trị viên để cập nhật cấu hình.',
+        );
+        expect(authController.state, AuthViewState.authenticated);
+
+        controller.dispose();
+        authController.dispose();
+        await authRepo.dispose();
+      },
+    );
+
     test('signs out user if ProfileFailure requires sign out', () async {
       final authRepo = _FakeAuthRepo(_studentProfile());
       final authController = AuthController(repository: authRepo);
@@ -166,6 +243,378 @@ void main() {
       controller.dispose();
       authController.dispose();
       await authRepo.dispose();
+    });
+
+    test('dirty check: ignores update and does not call repository when phone is unchanged', () async {
+      final initialProfile = _studentProfile(phone: '0901111111');
+      final authRepo = _FakeAuthRepo(initialProfile);
+      final authController = AuthController(repository: authRepo);
+      await authController.restoreSession();
+
+      final profileRepo = _FakeProfileRepo();
+      final controller = ProfileController(
+        authController: authController,
+        repository: profileRepo,
+      );
+
+      // Nhập số điện thoại giống hệt hiện tại
+      final successSame = await controller.updatePhone('0901111111');
+      expect(successSame, isTrue);
+      expect(profileRepo.updatePhoneCount, 0);
+
+      // Nhập số điện thoại chứa khoảng trắng/dấu gạch ngang nhưng chuẩn hóa ra giống hệt
+      final successFormatted = await controller.updatePhone(' 090-111-1111 ');
+      expect(successFormatted, isTrue);
+      expect(profileRepo.updatePhoneCount, 0);
+
+      controller.dispose();
+      authController.dispose();
+      await authRepo.dispose();
+    });
+
+    test(
+      'normalizes phone number with dashes/spaces before sending to repository',
+      () async {
+        final initialProfile = _studentProfile(phone: '0901111111');
+        final authRepo = _FakeAuthRepo(initialProfile);
+        final authController = AuthController(repository: authRepo);
+        await authController.restoreSession();
+
+        final profileRepo = _FakeProfileRepo();
+        final controller = ProfileController(
+          authController: authController,
+          repository: profileRepo,
+        );
+
+        final success = await controller.updatePhone(' +84 988-776-655 ');
+        expect(success, isTrue);
+        expect(profileRepo.updatePhoneCount, 1);
+        expect(profileRepo.lastPhone, '+84988776655');
+        expect(authController.profile?.phone, '+84988776655');
+
+        controller.dispose();
+        authController.dispose();
+        await authRepo.dispose();
+      },
+    );
+
+    test('loadProfile fetches latest profile and updates AuthController (Pull-to-Refresh)', () async {
+      final initialProfile = _studentProfile(fullName: 'Tên Ban Đầu');
+      final authRepo = _FakeAuthRepo(initialProfile);
+      final authController = AuthController(repository: authRepo);
+      await authController.restoreSession();
+
+      final profileRepo = _FakeProfileRepo()
+        ..profileToReturn = _studentProfile(fullName: 'Tên Mới Từ Server');
+      final controller = ProfileController(
+        authController: authController,
+        repository: profileRepo,
+      );
+
+      await controller.loadProfile(isRefresh: true);
+      expect(profileRepo.getProfileCount, 1);
+      expect(authController.profile?.fullName, 'Tên Mới Từ Server');
+
+      controller.dispose();
+      authController.dispose();
+      await authRepo.dispose();
+    });
+  });
+
+  group('SupabaseProfileRepository PostgrestException mapping and RPC contract', () {
+    final clients = <SupabaseClient>[];
+
+    Future<SupabaseClient> open(
+      Future<http.Response> Function(http.Request) handler, {
+      String userId = 'student-id-123',
+    }) async {
+      final client = SupabaseClient(
+        'https://dormfix.test',
+        'sb_publishable_local_profile_test',
+        authOptions: const AuthClientOptions(autoRefreshToken: false),
+        httpClient: MockClient((request) async {
+          final response = await handler(request);
+          return http.Response.bytes(
+            response.bodyBytes,
+            response.statusCode,
+            headers: response.headers,
+            request: request,
+          );
+        }),
+      );
+      clients.add(client);
+      await client.auth.setInitialSession(
+        jsonEncode({
+          'access_token': _testJwt(userId),
+          'token_type': 'bearer',
+          'refresh_token': 'local-test-refresh-token',
+          'user': {
+            'id': userId,
+            'app_metadata': <String, dynamic>{},
+            'user_metadata': <String, dynamic>{},
+            'aud': 'authenticated',
+            'created_at': '2026-10-15T00:00:00Z',
+          },
+        }),
+      );
+      return client;
+    }
+
+    tearDown(() async {
+      for (final client in clients) {
+        await client.dispose();
+      }
+      clients.clear();
+    });
+
+    test('updatePhone catches PostgREST schema cache PGRST202 error and maps to friendly message', () async {
+      final client = await open((request) async {
+        expect(request.url.path, '/rest/v1/rpc/update_my_phone');
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(body['p_phone'], '0901234567');
+        return http.Response.bytes(
+          utf8.encode(
+            jsonEncode({
+              'code': 'PGRST202',
+              'details': null,
+              'hint': null,
+              'message': 'Could not find the function public.update_my_phone(p_phone) in the schema cache',
+            }),
+          ),
+          404,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      });
+
+      final repo = SupabaseProfileRepository(client);
+
+      expect(
+        () => repo.updatePhone(phone: '0901234567'),
+        throwsA(
+          isA<ProfileFailure>().having(
+            (f) => f.message,
+            'message',
+            'Chức năng cập nhật số điện thoại tạm thời chưa khả dụng trên hệ thống. Vui lòng liên hệ quản trị viên để cập nhật cấu hình.',
+          ),
+        ),
+      );
+    });
+
+    test(
+      'updatePhone successfully calls RPC with p_phone and returns UserProfile',
+      () async {
+        final client = await open((request) async {
+          expect(request.url.path, '/rest/v1/rpc/update_my_phone');
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          expect(body['p_phone'], '0901234567');
+          return http.Response.bytes(
+            utf8.encode(
+              jsonEncode({
+                'id': 'student-id-123',
+                'identity_code': 'SV001',
+                'full_name': 'Sinh viên Test',
+                'email': 'student@test.local',
+                'phone': '0901234567',
+                'role': 'student',
+                'status': 'active',
+                'room': null,
+                'must_change_password': false,
+                'can_access': true,
+              }),
+            ),
+            200,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          );
+        });
+
+        final repo = SupabaseProfileRepository(client);
+        final profile = await repo.updatePhone(phone: '0901234567');
+
+        expect(profile.phone, '0901234567');
+        expect(profile.fullName, 'Sinh viên Test');
+      },
+    );
+
+    test(
+      'getProfile catches schema cache PGRST202 and maps to friendly message',
+      () async {
+        final client = await open((request) async {
+          expect(request.url.path, '/rest/v1/rpc/get_my_profile');
+          return http.Response.bytes(
+            utf8.encode(
+              jsonEncode({
+                'code': 'PGRST202',
+                'details': null,
+                'hint': null,
+                'message': 'Could not find the function public.get_my_profile() in the schema cache',
+              }),
+            ),
+            404,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          );
+        });
+
+        final repo = SupabaseProfileRepository(client);
+
+        expect(
+          () => repo.getProfile(),
+          throwsA(
+            isA<ProfileFailure>().having(
+              (f) => f.message,
+              'message',
+              'Dịch vụ thông tin hồ sơ tạm thời chưa khả dụng. Vui lòng liên hệ quản trị viên.',
+            ),
+          ),
+        );
+      },
+    );
+  });
+
+  group('SupabaseProfileRepository PostgrestException mapping and RPC contract', () {
+    final clients = <SupabaseClient>[];
+
+    Future<SupabaseClient> open(
+      Future<http.Response> Function(http.Request) handler, {
+      String userId = 'student-id-123',
+    }) async {
+      final client = SupabaseClient(
+        'https://dormfix.test',
+        'sb_publishable_local_profile_test',
+        authOptions: const AuthClientOptions(autoRefreshToken: false),
+        httpClient: MockClient((request) async {
+          final response = await handler(request);
+          return http.Response.bytes(
+            response.bodyBytes,
+            response.statusCode,
+            headers: response.headers,
+            request: request,
+          );
+        }),
+      );
+      clients.add(client);
+      await client.auth.setInitialSession(
+        jsonEncode({
+          'access_token': _testJwt(userId),
+          'token_type': 'bearer',
+          'refresh_token': 'local-test-refresh-token',
+          'user': {
+            'id': userId,
+            'app_metadata': <String, dynamic>{},
+            'user_metadata': <String, dynamic>{},
+            'aud': 'authenticated',
+            'created_at': '2026-10-15T00:00:00Z',
+          },
+        }),
+      );
+      return client;
+    }
+
+    tearDown(() async {
+      for (final client in clients) {
+        await client.dispose();
+      }
+      clients.clear();
+    });
+
+    test(
+      'updatePhone catches PostgREST schema cache PGRST202 error and maps to friendly message',
+      () async {
+        final client = await open((request) async {
+          expect(request.url.path, '/rest/v1/rpc/update_my_phone');
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          expect(body['p_phone'], '0901234567');
+          return http.Response.bytes(
+            utf8.encode(
+              jsonEncode({
+                'code': 'PGRST202',
+                'details': null,
+                'hint': null,
+                'message':
+                    'Could not find the function public.update_my_phone(p_phone) in the schema cache',
+              }),
+            ),
+            404,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          );
+        });
+
+        final repo = SupabaseProfileRepository(client);
+
+        expect(
+          () => repo.updatePhone(phone: '0901234567'),
+          throwsA(
+            isA<ProfileFailure>().having(
+              (f) => f.message,
+              'message',
+              'Chức năng cập nhật số điện thoại tạm thời chưa khả dụng trên hệ thống. Vui lòng liên hệ quản trị viên để cập nhật cấu hình.',
+            ),
+          ),
+        );
+      },
+    );
+
+    test('updatePhone successfully calls RPC with p_phone and returns UserProfile', () async {
+      final client = await open((request) async {
+        expect(request.url.path, '/rest/v1/rpc/update_my_phone');
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(body['p_phone'], '0901234567');
+        return http.Response.bytes(
+          utf8.encode(
+            jsonEncode({
+              'id': 'student-id-123',
+              'identity_code': 'SV001',
+              'full_name': 'Sinh viên Test',
+              'email': 'student@test.local',
+              'phone': '0901234567',
+              'role': 'student',
+              'status': 'active',
+              'room': null,
+              'must_change_password': false,
+              'can_access': true,
+            }),
+          ),
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      });
+
+      final repo = SupabaseProfileRepository(client);
+      final profile = await repo.updatePhone(phone: '0901234567');
+
+      expect(profile.phone, '0901234567');
+      expect(profile.fullName, 'Sinh viên Test');
+    });
+
+    test('getProfile catches schema cache PGRST202 and maps to friendly message', () async {
+      final client = await open((request) async {
+        expect(request.url.path, '/rest/v1/rpc/get_my_profile');
+        return http.Response.bytes(
+          utf8.encode(
+            jsonEncode({
+              'code': 'PGRST202',
+              'details': null,
+              'hint': null,
+              'message':
+                  'Could not find the function public.get_my_profile() in the schema cache',
+            }),
+          ),
+          404,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      });
+
+      final repo = SupabaseProfileRepository(client);
+
+      expect(
+        () => repo.getProfile(),
+        throwsA(
+          isA<ProfileFailure>().having(
+            (f) => f.message,
+            'message',
+            'Dịch vụ thông tin hồ sơ tạm thời chưa khả dụng. Vui lòng liên hệ quản trị viên.',
+          ),
+        ),
+      );
     });
   });
 
@@ -419,6 +868,124 @@ void main() {
       authController.dispose();
       await authRepo.dispose();
     });
+
+    testWidgets(
+      'dirty check on ProfilePage: shows SnackBar and skips updatePhone when phone is unchanged',
+      (tester) async {
+        final initialStudent = _studentProfile(phone: '0901111111');
+        final authRepo = _FakeAuthRepo(initialStudent);
+        final authController = AuthController(repository: authRepo);
+        await authController.restoreSession();
+
+        final profileRepo = _FakeProfileRepo();
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: AppTheme.light,
+            home: ProfilePage(
+              controller: authController,
+              profileRepository: profileRepo,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Nhập số điện thoại giống hệt hiện tại
+        await tester.enterText(
+          find.byKey(const Key('profile-phone-input')),
+          '0901111111',
+        );
+        await tester.ensureVisible(
+          find.byKey(const Key('profile-save-phone-btn')),
+        );
+        await tester.tap(find.byKey(const Key('profile-save-phone-btn')));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Số điện thoại không thay đổi.'), findsOneWidget);
+        expect(profileRepo.updatePhoneCount, 0);
+
+        // Nhập số điện thoại có khoảng trắng/gạch ngang nhưng chuẩn hóa ra giống hệt
+        await tester.enterText(
+          find.byKey(const Key('profile-phone-input')),
+          ' 090-111-1111 ',
+        );
+        await tester.tap(find.byKey(const Key('profile-save-phone-btn')));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Số điện thoại không thay đổi.'), findsOneWidget);
+        expect(profileRepo.updatePhoneCount, 0);
+
+        authController.dispose();
+        await authRepo.dispose();
+      },
+    );
+
+    testWidgets(
+      'pull-to-refresh on ProfilePage triggers loadProfile and updates screen',
+      (tester) async {
+        final initialStudent = _studentProfile(fullName: 'Sinh viên Cũ');
+        final authRepo = _FakeAuthRepo(initialStudent);
+        final authController = AuthController(repository: authRepo);
+        await authController.restoreSession();
+
+        final profileRepo = _FakeProfileRepo()
+          ..profileToReturn = _studentProfile(
+            fullName: 'Sinh viên Đã Cập Nhật',
+          );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: AppTheme.light,
+            home: ProfilePage(
+              controller: authController,
+              profileRepository: profileRepo,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Sinh viên Cũ'), findsOneWidget);
+
+        // Kéo RefreshIndicator xuống
+        await tester.fling(find.byType(ListView), const Offset(0, 300), 1000);
+        await tester.pumpAndSettle();
+
+        expect(profileRepo.getProfileCount, greaterThan(0));
+        expect(find.text('Sinh viên Đã Cập Nhật'), findsOneWidget);
+
+        authController.dispose();
+        await authRepo.dispose();
+      },
+    );
+
+    testWidgets(
+      'renders lock outline icons for read-only fields on ProfilePage (DF-005)',
+      (tester) async {
+        final student = _studentProfile(
+          fullName: 'Sinh viên An',
+          identityCode: 'SV123',
+          email: 'an@dorm.test',
+          roomCode: 'A101',
+        );
+        final authRepo = _FakeAuthRepo(student);
+        final authController = AuthController(repository: authRepo);
+        await authController.restoreSession();
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: AppTheme.light,
+            home: ProfilePage(controller: authController),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Biểu tượng khóa (Icons.lock_outline) xuất hiện cho các trường Read-only
+        expect(find.byIcon(Icons.lock_outline), findsWidgets);
+
+        authController.dispose();
+        await authRepo.dispose();
+      },
+    );
   });
 }
 
@@ -514,10 +1081,17 @@ class _FakeAuthRepo implements AuthRepository {
 class _FakeProfileRepo implements ProfileRepository {
   String? lastPhone;
   int updatePhoneCount = 0;
+  int getProfileCount = 0;
   ProfileFailure? failure;
+  UserProfile? profileToReturn;
 
   @override
-  Future<UserProfile> getProfile() async => _studentProfile();
+  Future<UserProfile> getProfile() async {
+    getProfileCount++;
+    final f = failure;
+    if (f != null) throw f;
+    return profileToReturn ?? _studentProfile();
+  }
 
   @override
   Future<UserProfile> updatePhone({required String phone}) async {
@@ -527,4 +1101,15 @@ class _FakeProfileRepo implements ProfileRepository {
     if (f != null) throw f;
     return _studentProfile(phone: phone);
   }
+}
+
+String _testJwt(String userId) {
+  String part(Object value) =>
+      base64Url.encode(utf8.encode(jsonEncode(value))).replaceAll('=', '');
+  final expiresAt =
+      DateTime.now().add(const Duration(hours: 1)).millisecondsSinceEpoch ~/
+      1000;
+  return '${part({'alg': 'HS256', 'typ': 'JWT'})}.'
+      '${part({'sub': userId, 'role': 'authenticated', 'exp': expiresAt})}.'
+      'local-test-signature';
 }
