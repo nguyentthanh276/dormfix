@@ -68,7 +68,10 @@ class _LoginPageState extends State<LoginPage> {
                     enabled: !widget.controller.isLoading,
                     keyboardType: TextInputType.emailAddress,
                     textInputAction: TextInputAction.next,
-                    autofillHints: const [AutofillHints.username],
+                    autofillHints: const [
+                      AutofillHints.email,
+                      AutofillHints.username,
+                    ],
                     onChanged: (_) {
                       if (widget.controller.error != null) {
                         widget.controller.clearError();

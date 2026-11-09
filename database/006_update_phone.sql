@@ -34,3 +34,6 @@ comment on function public.update_my_phone(text) is
   'Cập nhật số điện thoại của chính tài khoản đang đăng nhập. Trả về hồ sơ mới nhất.';
 
 commit;
+
+notify pgrst, 'reload schema';
+

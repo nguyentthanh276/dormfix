@@ -42,18 +42,29 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
     appBar: AppBar(
       title: const Text('DormFix'),
       actions: [
-        TextButton.icon(
-          onPressed: widget.controller.isLoading
-              ? null
-              : widget.controller.signOut,
-          icon: const Icon(Icons.logout),
-          label: const Text('Đăng xuất'),
+        Padding(
+          padding: const EdgeInsets.only(right: 8),
+          child: TextButton.icon(
+            key: const Key('change-password-logout-btn'),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.white,
+              backgroundColor: Colors.white.withValues(alpha: 0.18),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+            ),
+            onPressed: widget.controller.isLoading
+                ? null
+                : widget.controller.signOut,
+            icon: const Icon(Icons.logout_rounded, size: 18),
+            label: const Text('Đăng xuất'),
+          ),
         ),
       ],
     ),
     body: Center(
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 440),
           child: AnimatedBuilder(
@@ -66,30 +77,30 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                 children: [
                   Icon(
                     Icons.lock_reset_outlined,
-                    size: 64,
+                    size: 48,
                     color: Theme.of(context).colorScheme.primary,
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 8),
                   Text(
                     'Cần đổi mật khẩu',
                     style: Theme.of(context).textTheme.headlineSmall,
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 4),
                   Text(
                     'Đổi mật khẩu tạm',
                     style: Theme.of(context).textTheme.titleMedium
                         ?.copyWith(fontWeight: FontWeight.w600),
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 4),
                   Text(
-                    'Để bảo mật tài khoản, bạn cần đổi mật khẩu mới trong lần đăng nhập đầu tiên.',
+                    'Để bảo mật tài khoản, bạn cần đổi mật khẩu mới trong lần đăng nhập đầu tiên hoặc sau khi được Quản trị viên cấp lại mật khẩu tạm.',
                     style: Theme.of(context).textTheme.bodyMedium
                         ?.copyWith(color: Colors.black87),
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 16),
                   TextFormField(
                     key: const Key('new-password-input'),
                     controller: _newPasswordController,
@@ -98,6 +109,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                     textInputAction: TextInputAction.next,
                     autofillHints: const [AutofillHints.newPassword],
                     onChanged: (_) {
+                      setState(() {});
                       if (widget.controller.error != null) {
                         widget.controller.clearError();
                       }
@@ -106,6 +118,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                       labelText: 'Mật khẩu mới',
                       prefixIcon: const Icon(Icons.lock_outline),
                       suffixIcon: IconButton(
+                        key: const Key('new-password-visibility-btn'),
                         tooltip: _obscureNewPassword
                             ? 'Hiện mật khẩu'
                             : 'Ẩn mật khẩu',
@@ -124,7 +137,35 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                     ),
                     validator: PasswordRules.validateNewPassword,
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 6),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: Wrap(
+                      spacing: 12,
+                      runSpacing: 4,
+                      children: [
+                        _PasswordRequirementItem(
+                          isMet: PasswordRules.hasMinLength(
+                            _newPasswordController.text,
+                          ),
+                          text: '≥6 ký tự',
+                        ),
+                        _PasswordRequirementItem(
+                          isMet: PasswordRules.hasLetter(
+                            _newPasswordController.text,
+                          ),
+                          text: 'Có chữ cái',
+                        ),
+                        _PasswordRequirementItem(
+                          isMet: PasswordRules.hasDigit(
+                            _newPasswordController.text,
+                          ),
+                          text: 'Có chữ số',
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
                   TextFormField(
                     key: const Key('confirm-password-input'),
                     controller: _confirmPasswordController,
@@ -142,6 +183,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                       labelText: 'Xác nhận mật khẩu mới',
                       prefixIcon: const Icon(Icons.lock_outline),
                       suffixIcon: IconButton(
+                        key: const Key('confirm-password-visibility-btn'),
                         tooltip: _obscureConfirmPassword
                             ? 'Hiện mật khẩu'
                             : 'Ẩn mật khẩu',
@@ -189,6 +231,15 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                           )
                         : const Text('Đổi mật khẩu'),
                   ),
+                  const SizedBox(height: 12),
+                  TextButton.icon(
+                    key: const Key('change-password-bottom-logout-btn'),
+                    onPressed: widget.controller.isLoading
+                        ? null
+                        : widget.controller.signOut,
+                    icon: const Icon(Icons.logout, size: 18),
+                    label: const Text('Hủy & Đăng xuất'),
+                  ),
                 ],
               ),
             ),
@@ -197,4 +248,35 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
       ),
     ),
   );
+}
+
+class _PasswordRequirementItem extends StatelessWidget {
+  const _PasswordRequirementItem({required this.isMet, required this.text});
+
+  final bool isMet;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isMet ? Colors.green.shade700 : Colors.black45;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          isMet ? Icons.check_circle_outline : Icons.radio_button_unchecked,
+          size: 13,
+          color: color,
+        ),
+        const SizedBox(width: 4),
+        Text(
+          text,
+          style: TextStyle(
+            fontSize: 11,
+            color: color,
+            fontWeight: isMet ? FontWeight.w500 : FontWeight.normal,
+          ),
+        ),
+      ],
+    );
+  }
 }
