@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/models/repair_status.dart';
+import '../../../core/widgets/status_chip.dart';
 
 String technicianDate(DateTime date) {
   final local = date.toLocal();
@@ -15,26 +16,7 @@ class TechnicianStatusBadge extends StatelessWidget {
   final RepairStatus status;
 
   @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final color = switch (status) {
-      RepairStatus.completed => Colors.green.shade800,
-      RepairStatus.cancelled || RepairStatus.rejected => scheme.error,
-      RepairStatus.awaitingRework => Colors.deepOrange.shade800,
-      _ => scheme.secondary,
-    };
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        child: Text(status.label, style: TextStyle(color: color)),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => StatusChip(status);
 }
 
 class TechnicianJobsMessage extends StatelessWidget {

@@ -5,11 +5,74 @@ import 'package:dormfix/app/startup_page.dart';
 import 'package:dormfix/core/models/app_role.dart';
 import 'package:dormfix/features/auth/data/auth_repository.dart';
 import 'package:dormfix/features/auth/models/user_profile.dart';
+import 'package:dormfix/features/profile/data/profile_repository.dart';
+import 'package:dormfix/features/profile/presentation/profile_page.dart';
+import 'package:dormfix/features/student_requests/presentation/create_request_screen.dart';
 import 'package:dormfix/features/student_requests/presentation/request_detail_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets('personal tab mounts lazily and refreshes on activation', (
+    tester,
+  ) async {
+    final auth = _StudentAuthRepository();
+    final profiles = _CountingProfileRepository();
+    addTearDown(() async {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await auth.close();
+    });
+    await tester.pumpWidget(
+      DormFixApp(authRepository: auth, profileRepository: profiles),
+    );
+    await tester.pumpAndSettle();
+    expect(profiles.reads, 0);
+    expect(find.byType(ProfilePage, skipOffstage: false), findsNothing);
+    await tester.tap(find.text('Thông báo'));
+    await tester.pumpAndSettle();
+    expect(profiles.reads, 0);
+    expect(find.byType(ProfilePage, skipOffstage: false), findsNothing);
+    await tester.tap(find.text('Cá nhân'));
+    await tester.pumpAndSettle();
+    expect(find.byType(ProfilePage), findsOneWidget);
+    await tester.tap(find.text('Yêu cầu'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cá nhân'));
+    await tester.pumpAndSettle();
+    expect(profiles.reads, 1);
+  });
+
+  testWidgets('expiry removes the create draft and its discard dialog', (
+    tester,
+  ) async {
+    final auth = _StudentAuthRepository();
+    addTearDown(() async {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await auth.close();
+    });
+    await tester.pumpWidget(DormFixApp(authRepository: auth));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('student-create-request')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('titleField')),
+      'Private draft',
+    );
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    expect(find.byType(AlertDialog), findsOneWidget);
+
+    auth.expire();
+    await tester.pumpAndSettle();
+    expect(find.text('Đăng nhập DormFix'), findsOneWidget);
+    expect(find.byType(CreateRequestScreen), findsNothing);
+    expect(find.byType(AlertDialog), findsNothing);
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.text('Private draft'), findsNothing);
+    expect(find.byType(CreateRequestScreen), findsNothing);
+  });
+
   testWidgets(
     'session expiry removes student detail and back cannot restore it',
     (tester) async {
@@ -197,6 +260,20 @@ const _studentA = UserProfile(
   mustChangePassword: false,
   canAccess: true,
 );
+
+class _CountingProfileRepository implements ProfileRepository {
+  int reads = 0;
+
+  @override
+  Future<UserProfile> getProfile() async {
+    reads++;
+    return _studentA;
+  }
+
+  @override
+  Future<UserProfile> updatePhone({required String phone}) async =>
+      _studentA.copyWith(phone: phone);
+}
 
 const _studentB = UserProfile(
   id: 'student-b',

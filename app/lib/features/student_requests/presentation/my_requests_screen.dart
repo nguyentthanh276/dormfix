@@ -20,11 +20,17 @@ import 'widgets/request_card.dart';
 class MyRequestsScreen extends StatefulWidget {
   final RequestRepository repository;
   final NotificationRepository? notificationRepository;
+  final bool embedded;
+  final bool active;
+  final int refreshRevision;
 
   const MyRequestsScreen({
     super.key,
     required this.repository,
     this.notificationRepository,
+    this.embedded = false,
+    this.active = true,
+    this.refreshRevision = 0,
   });
 
   @override
@@ -40,6 +46,7 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
 
   late NotificationRepository _effectiveNotificationRepo;
   int _notificationGeneration = 0;
+  int _loadGeneration = 0;
 
   @override
   void initState() {
@@ -59,33 +66,53 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
       _unreadNotifications = 0;
       _loadUnreadNotifications();
     }
+    if (oldWidget.repository != widget.repository) {
+      _requests = [];
+      _status = null;
+      _load();
+    } else if ((!oldWidget.active && widget.active) ||
+        oldWidget.refreshRevision != widget.refreshRevision) {
+      _load();
+      _loadUnreadNotifications();
+    }
   }
 
   Future<void> _load() async {
     if (!mounted) return;
+    final generation = ++_loadGeneration;
     setState(() {
       _loading = true;
       _errorText = null;
     });
     try {
       final result = await widget.repository.fetchMyRequests();
-      if (mounted) {
+      if (mounted && generation == _loadGeneration) {
         setState(() {
           _requests = result;
           // Ghi nhận việc về Tất cả để trạng thái cũ không tự được chọn lại.
           _status = RequestFilter.validSelection(result, _status);
         });
       }
+    } on RequestFailure catch (failure) {
+      if (mounted && generation == _loadGeneration) {
+        setState(() {
+          _requests = [];
+          _errorText = failure.message;
+        });
+      }
     } catch (_) {
-      if (mounted) {
+      if (mounted && generation == _loadGeneration) {
         setState(() => _errorText = 'Không tải được danh sách. Hãy thử lại.');
       }
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted && generation == _loadGeneration) {
+        setState(() => _loading = false);
+      }
     }
   }
 
   Future<void> _loadUnreadNotifications() async {
+    if (widget.embedded) return;
     final generation = ++_notificationGeneration;
     try {
       final count = await _effectiveNotificationRepo.getUnreadCount();
@@ -100,7 +127,8 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
   }
 
   Future<void> _openDetail(RepairRequest item) async {
-    if (item.status == RepairStatus.awaitingConfirmation) {
+    if (item.status == RepairStatus.awaitingConfirmation &&
+        widget.repository.supportsConfirmationActions) {
       await Navigator.of(context).push<void>(
         MaterialPageRoute(
           builder: (_) => RequestConfirmationScreen(
@@ -143,6 +171,7 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.embedded) return _body();
     return Scaffold(
       appBar: AppBar(
         title: const Text('Yêu cầu của tôi'),
@@ -154,6 +183,7 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
               await Navigator.of(context).push<void>(
                 MaterialPageRoute(
                   builder: (_) => AwaitingConfirmationScreen(
+                    requestRepository: widget.repository,
                     repository: AdapterConfirmationRepository(
                       widget.repository,
                     ),
@@ -187,7 +217,25 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
       return ErrorView(message: _errorText!, onRetry: _load);
     }
     if (_requests.isEmpty) {
-      return const EmptyView('Bạn chưa có yêu cầu sửa chữa nào');
+      return RefreshIndicator(
+        onRefresh: _load,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: [
+            const SizedBox(
+              height: 260,
+              child: EmptyView('Bạn chưa có yêu cầu sửa chữa nào'),
+            ),
+            Center(
+              child: TextButton.icon(
+                onPressed: _load,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Tải lại'),
+              ),
+            ),
+          ],
+        ),
+      );
     }
 
     // Chỉ hiện nhãn của những trạng thái đang có trong danh sách.
@@ -203,7 +251,7 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
             height: 52,
             child: ListView(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               children: [
                 _chip(null, 'Tất cả (${_requests.length})', selected),
                 for (final s in statuses)
@@ -222,7 +270,8 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
               await _loadUnreadNotifications();
             },
             child: ListView.separated(
-              padding: const EdgeInsets.fromLTRB(8, 4, 8, 16),
+              key: const PageStorageKey('student-requests-list'),
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
               itemCount: list.length,
               separatorBuilder: (context, index) => const SizedBox(height: 8),
               itemBuilder: (context, index) => RequestCard(

@@ -217,6 +217,105 @@ Future<void> _scrollTo(
 }
 
 void main() {
+  _test('current Admin rework reason is shown above the continue action', (
+    tester,
+    auth,
+    jobs,
+    workflow,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(320, 650);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    final adminRework = JobHistoryEntry(
+      id: 'admin-rework',
+      action: 'admin_rework_for_revoked_student',
+      actorName: 'Nguyễn Quản trị',
+      oldStatus: 'awaiting_confirmation',
+      newStatus: 'awaiting_rework',
+      note: 'Van vẫn rò ở đầu nối. Kiểm tra lại.',
+      occurredAt: technicianTestDate,
+    );
+    final transfer = JobHistoryEntry(
+      id: 'admin-transfer',
+      action: 'admin_transferred',
+      actorName: 'Nguyễn Quản trị',
+      oldStatus: 'awaiting_rework',
+      newStatus: 'awaiting_rework',
+      note: 'Chuyển cho người đang trực.',
+      occurredAt: technicianTestDate.add(const Duration(minutes: 1)),
+    );
+    jobs.detail = _detail(
+      RepairStatus.awaitingRework,
+      canContinue: true,
+      history: [adminRework, transfer],
+    );
+    await _mount(tester, auth, jobs, workflow);
+
+    final reason = find.text('Lý do: ${adminRework.note}');
+    final continueAction = find.byKey(const Key('technician-continue-job'));
+    expect(find.text('Admin yêu cầu xử lý lại'), findsOneWidget);
+    expect(reason, findsOneWidget);
+    expect(
+      tester.getTopLeft(reason).dy,
+      lessThan(tester.getTopLeft(continueAction).dy),
+    );
+    await _scrollTo(
+      tester,
+      find.text('Admin yêu cầu xử lý lại thay Sinh viên'),
+      260,
+    );
+    expect(find.text(adminRework.note!), findsOneWidget);
+
+    final studentRework = JobHistoryEntry(
+      id: 'later-student-rework',
+      action: 'student_rework_requested',
+      actorName: 'Sinh viên Nguyễn An',
+      oldStatus: 'awaiting_confirmation',
+      newStatus: 'awaiting_rework',
+      note: 'Lý do của lần yêu cầu sau.',
+      occurredAt: technicianTestDate.add(const Duration(hours: 1)),
+    );
+    jobs.detail = _detail(
+      RepairStatus.awaitingRework,
+      canContinue: true,
+      history: [adminRework, transfer, studentRework],
+    );
+    await tester.pump(const Duration(seconds: 15));
+    await tester.pumpAndSettle();
+    await _scrollTo(tester, continueAction, -260);
+    expect(reason, findsNothing);
+    expect(find.text('Admin yêu cầu xử lý lại'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  _test('Back asks before discarding an unsent result form', (
+    tester,
+    auth,
+    jobs,
+    workflow,
+  ) async {
+    jobs.detail = _detail(RepairStatus.inProgress, canSubmit: true);
+    await _mount(tester, auth, jobs, workflow);
+    await _openForm(tester, content: 'Kết quả chưa gửi');
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    expect(find.text('Bỏ kết quả đang nhập?'), findsOneWidget);
+    await tester.tap(find.text('Tiếp tục nhập'));
+    await tester.pumpAndSettle();
+    expect(find.text('Kết quả chưa gửi'), findsOneWidget);
+    expect(find.byKey(const Key('technician-result-form')), findsOneWidget);
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Bỏ thay đổi'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('technician-result-form')), findsNothing);
+    expect(find.text('Kết quả chưa gửi'), findsNothing);
+    expect(find.text('Công việc được giao'), findsOneWidget);
+    expect(workflow.submissions, isEmpty);
+    expect(tester.takeException(), isNull);
+  });
+
   _test(
     'transfer confirmation requires in-progress status and server capability',
     (tester, auth, jobs, workflow) async {
@@ -1024,7 +1123,10 @@ void main() {
           if (leave == 'back') {
             await tester.tap(find.byType(BackButton));
           } else {
-            await tester.tap(find.text('Đăng xuất'));
+            await tester
+                .widget<TechnicianHomePage>(find.byType(TechnicianHomePage))
+                .controller
+                .signOut();
           }
           await tester.pumpAndSettle();
           expect(find.byKey(const Key('technician-result-form')), findsNothing);
@@ -1160,7 +1262,10 @@ void main() {
           await _openForm(tester, content: 'Nội dung của tài khoản cũ');
           await _tap(tester, 'technician-submit-result', settle: false);
         }
-        await tester.tap(find.text('Đăng xuất'));
+        await tester
+            .widget<TechnicianHomePage>(find.byType(TechnicianHomePage))
+            .controller
+            .signOut();
         await tester.pumpAndSettle();
         auth.profile = technicianProfile(id: 'technician-2');
         jobs.jobs = [

@@ -11,7 +11,7 @@ import 'request_repository.dart';
 ///
 /// Dùng để dựng UI / unit test / demo khi backend chưa có RPC tạo/sửa/hủy và Storage ảnh.
 /// Dữ liệu lưu trong bộ nhớ; mất khi tắt app.
-class MockRequestRepository implements RequestRepository {
+class MockRequestRepository extends RequestRepository {
   MockRequestRepository({
     String? roomCode,
     this.studentId = 'mock-student',

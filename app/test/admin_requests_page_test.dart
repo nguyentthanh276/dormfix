@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:dormfix/core/models/repair_status.dart';
@@ -161,6 +162,94 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Chưa có yêu cầu sửa chữa nào.'), findsOneWidget);
     });
+
+    testWidgets('a slower response cannot replace newer combined filters', (
+      tester,
+    ) async {
+      final repository = _RecordingRepository();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AdminRequestsPage(
+            repository: repository,
+            isAdmin: true,
+            onSignOut: () {},
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final oldResponse = Completer<void>();
+      repository.pauseNextList = oldResponse.future;
+      await tester.tap(find.byType(DropdownButtonFormField<RepairStatus?>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Chờ tiếp nhận').last);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      await tester.tap(find.byType(DropdownButtonFormField<String?>).first);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.tap(find.text('DEMO-B202').last);
+      await tester.pumpAndSettle();
+      expect(find.text('Không tìm thấy yêu cầu phù hợp.'), findsOneWidget);
+
+      oldResponse.complete();
+      await tester.pumpAndSettle();
+      expect(find.text('Không tìm thấy yêu cầu phù hợp.'), findsOneWidget);
+      expect(find.text('DF000101'), findsNothing);
+    });
+
+    testWidgets('refresh removes a filter whose last assignment transferred', (
+      tester,
+    ) async {
+      final repository = _RecordingRepository();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AdminRequestsPage(
+            repository: repository,
+            isAdmin: true,
+            onSignOut: () {},
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final technician = find
+          .widgetWithText(
+            DropdownButtonFormField<String?>,
+            'Tất cả Kỹ thuật viên',
+          )
+          .first;
+      await tester.tap(technician);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Lê Cường').last);
+      await tester.pumpAndSettle();
+      expect(repository.lastFilters?.technicianId, 'tech-active');
+
+      final refresh = tester
+          .widget<RefreshIndicator>(find.byType(RefreshIndicator))
+          .onRefresh;
+      await refresh();
+      await tester.pumpAndSettle();
+      expect(repository.lastFilters?.technicianId, 'tech-active');
+
+      repository.replacementOptions = const AdminRequestFilterOptions(
+        rooms: [],
+        categories: [],
+        technicians: [
+          AdminRequestOption(id: 'tech-first-login', label: 'Trần Minh'),
+        ],
+      );
+      await refresh();
+      await tester.pumpAndSettle();
+      expect(repository.lastFilters?.technicianId, isNull);
+      expect(repository.optionCalls, 3);
+
+      await tester.tap(technician);
+      await tester.pumpAndSettle();
+      expect(find.text('Trần Minh'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
   });
 
   testWidgets('loads requests when filter options fail', (tester) async {
@@ -246,6 +335,64 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Vui lòng nhập Lý do từ chối.'), findsOneWidget);
     });
+
+    testWidgets('submits the transfer reason with a small keyboard viewport', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(320, 568);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetViewInsets);
+      final repository = _RecordingRepository();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AdminRequestDetailPage(
+            repository: repository,
+            requestId: 'demo-3',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Đổi Kỹ thuật viên'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(DropdownButtonFormField<String>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Trần Minh').last);
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextFormField), '  Đổi ca trực  ');
+      tester.view.viewInsets = const FakeViewPadding(bottom: 280);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Lưu'));
+      await tester.pumpAndSettle();
+
+      expect(repository.transferReason, 'Đổi ca trực');
+      expect(repository.newTechnicianId, 'tech-first-login');
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('submits an Admin rework reason after dismissing the dialog', (
+      tester,
+    ) async {
+      final repository = _RecordingRepository();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AdminRequestDetailPage(
+            repository: repository,
+            requestId: 'demo-4',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Yêu cầu sửa lại'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextFormField), '  Kiểm tra lại  ');
+      await tester.tap(find.text('Xác nhận'));
+      await tester.pumpAndSettle();
+
+      expect(repository.reworkReason, 'Kiểm tra lại');
+      expect(tester.takeException(), isNull);
+    });
   });
 }
 
@@ -256,6 +403,12 @@ class _RecordingRepository implements AdminRequestRepository {
   bool failNextList = false;
   bool failNextOptions = false;
   bool returnEmpty = false;
+  Future<void>? pauseNextList;
+  AdminRequestFilters? lastFilters;
+  AdminRequestFilterOptions? replacementOptions;
+  String? transferReason;
+  String? newTechnicianId;
+  String? reworkReason;
 
   @override
   Future<List<AdminRequestOption>> fetchActiveTechnicians() =>
@@ -274,7 +427,10 @@ class _RecordingRepository implements AdminRequestRepository {
     String requestId,
     String technicianId,
     String reason,
-  ) => _delegate.transferRequest(requestId, technicianId, reason);
+  ) async {
+    transferReason = reason;
+    newTechnicianId = technicianId;
+  }
 
   @override
   Future<void> confirmForRevokedStudent(String requestId, String note) =>
@@ -284,16 +440,18 @@ class _RecordingRepository implements AdminRequestRepository {
   Future<void> requestReworkForRevokedStudent(
     String requestId,
     String reason,
-  ) => _delegate.requestReworkForRevokedStudent(requestId, reason);
+  ) async {
+    reworkReason = reason;
+  }
 
   @override
-  Future<AdminRequestFilterOptions> fetchFilterOptions() {
+  Future<AdminRequestFilterOptions> fetchFilterOptions() async {
     optionCalls++;
     if (failNextOptions) {
       failNextOptions = false;
       throw const AdminRequestFailure('Lá»—i táº£i bá»™ lá»c');
     }
-    return _delegate.fetchFilterOptions();
+    return replacementOptions ?? await _delegate.fetchFilterOptions();
   }
 
   @override
@@ -303,6 +461,10 @@ class _RecordingRepository implements AdminRequestRepository {
     required int limit,
   }) async {
     listCalls++;
+    lastFilters = filters;
+    final pause = pauseNextList;
+    pauseNextList = null;
+    if (pause != null) await pause;
     if (failNextList) {
       failNextList = false;
       throw const AdminRequestFailure('Lỗi tải dữ liệu');

@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/data/supabase_session_guard.dart';
 import '../models/user_profile.dart';
 
 abstract interface class AuthRepository {
@@ -42,6 +43,11 @@ class SupabaseAuthRepository implements AuthRepository {
     try {
       await _client.auth.signInWithPassword(email: email, password: password);
     } on AuthException catch (error) {
+      if (error.code == 'user_banned') {
+        throw const AuthFailure(
+          'Tài khoản đã bị khóa hoặc thu hồi. Vui lòng liên hệ Admin.',
+        );
+      }
       if (error.statusCode == '400' ||
           error.statusCode == '401' ||
           error.code == 'invalid_credentials') {
@@ -100,30 +106,27 @@ class SupabaseAuthRepository implements AuthRepository {
   Future<void> signOut() => _client.auth.signOut();
 
   @override
-  Future<UserProfile> changePassword({required String newPassword}) async {
-    final expectedUserId = _client.auth.currentSession?.user.id;
-    if (expectedUserId == null || expectedUserId.isEmpty) {
-      throw _sessionChangedFailure;
-    }
+  Future<UserProfile> changePassword({
+    required String newPassword,
+  }) => SupabaseSessionGuard(_client).run((accessToken) async {
+    final expectedUserId = _client.auth.currentSession!.user.id;
+    var samePassword = false;
     try {
       await _client.auth.updateUser(UserAttributes(password: newPassword));
     } on AuthException catch (error) {
-      if (error.statusCode == '400' ||
-          error.statusCode == '422' ||
-          error.code == 'weak_password') {
-        throw const AuthFailure('Mật khẩu mới không hợp lệ hoặc quá yếu.');
-      }
-      if (error.message.toLowerCase().contains('different from the old') ||
-          error.code == 'same_password') {
+      samePassword =
+          error.code == 'same_password' ||
+          error.message.toLowerCase().contains('different from the old');
+      if (!samePassword) {
+        if (error.statusCode == '400' ||
+            error.statusCode == '422' ||
+            error.code == 'weak_password') {
+          throw const AuthFailure('Mật khẩu mới không hợp lệ hoặc quá yếu.');
+        }
         throw const AuthFailure(
-          'Mật khẩu mới không được trùng với mật khẩu cũ.',
+          'Không thể đổi mật khẩu lúc này. Vui lòng thử lại.',
         );
       }
-      throw AuthFailure(
-        error.message.isNotEmpty
-            ? error.message
-            : 'Không thể đổi mật khẩu lúc này. Vui lòng thử lại.',
-      );
     } catch (_) {
       throw const AuthFailure(
         'Không thể đổi mật khẩu do lỗi kết nối. Vui lòng thử lại.',
@@ -133,33 +136,38 @@ class SupabaseAuthRepository implements AuthRepository {
     if (_client.auth.currentSession?.user.id != expectedUserId) {
       throw _sessionChangedFailure;
     }
-
     try {
-      await _client.rpc('complete_change_password');
+      // The server compares the current Auth password proof with the
+      // provisioning marker. A retry can finish an earlier successful write.
+      await _client
+          .rpc('complete_change_password')
+          .setHeader('Authorization', 'Bearer $accessToken');
+    } on PostgrestException catch (error) {
+      if (error.code == '28000' || error.code == '42501') {
+        throw _sessionChangedFailure;
+      }
+      if (error.code == 'P0001' && samePassword) {
+        throw const AuthFailure(
+          'Mật khẩu mới không được trùng với mật khẩu tạm.',
+        );
+      }
+      // A lost acknowledgement can still be reconciled by the profile read.
     } catch (_) {
-      // Backend RPC might not be deployed yet in early dev/test environment
+      // Reconcile below. Access is granted only by the server profile.
     }
 
     if (_client.auth.currentSession?.user.id != expectedUserId) {
       throw _sessionChangedFailure;
     }
-
-    try {
-      final updatedProfile = await loadProfile();
-      if (!updatedProfile.mustChangePassword) {
-        return updatedProfile;
-      }
-      return updatedProfile.copyWith(
-        mustChangePassword: false,
-        canAccess: true,
-      );
-    } catch (e) {
-      if (e is AuthFailure && e.signOutRequired) rethrow;
+    final profile = await loadProfile();
+    if (profile.status == 'active' &&
+        (profile.mustChangePassword || !profile.canAccess)) {
       throw const AuthFailure(
-        'Đã đổi mật khẩu nhưng không thể tải lại hồ sơ. Vui lòng thử lại.',
+        'Máy chủ chưa xác nhận đổi mật khẩu. Vui lòng thử lại.',
       );
     }
-  }
+    return profile;
+  }, denied: _sessionChangedFailure);
 
   @override
   Future<void> updatePassword({

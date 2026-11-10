@@ -10,6 +10,8 @@ class RepairRequest {
     required this.roomCode,
     required this.status,
     required this.createdAt,
+    this.version = 1,
+    this.studentId,
   });
 
   final String id;
@@ -19,4 +21,6 @@ class RepairRequest {
   final String roomCode; // phòng tại thời điểm gửi
   final RepairStatus status;
   final DateTime createdAt;
+  final int version;
+  final String? studentId;
 }

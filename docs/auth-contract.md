@@ -1,6 +1,6 @@
 # Hợp đồng backend đăng nhập — cụm 1 (An)
 
-Đã triển khai trên Supabase ngày 12/10/2026, kiểm thử role trong SQL Editor đạt. Chưa kiểm thử từ phiên đăng nhập Flutter.
+Đã triển khai `get_my_profile()` trên Supabase ngày 12/10/2026. Phần 6 bổ sung bước hoàn tất đổi mật khẩu bắt buộc và đã kiểm thử bằng Flutter SDK trên Supabase ngày 10/11/2026.
 
 ## get_my_profile()
 
@@ -22,15 +22,18 @@ Thứ tự xử lí:
 4. PROFILE_NOT_FOUND (P0002): báo chưa có hồ sơ và đăng xuất; không mặc định role.
 5. AUTH_REQUIRED (28000) hoặc phiên hết hạn: yêu cầu đăng nhập lại. Mất mạng/lỗi dịch vụ: cho thử lại, không tự cho vào nghiệp vụ.
 
-Khi active, phản hồi có id, identity_code, full_name, email, phone (có thể null), role, status, room (object hoặc null), must_change_password, can_access. room gồm id/code/building/is_active. Ví dụ Sinh viên trước đổi mật khẩu: email=student@example.com, role=student, room.code=DEMO-A101, must_change_password=true, can_access=false.
+Khi active, phản hồi có id, identity_code, full_name, email, phone (có thể null), role, status, room (object hoặc null), must_change_password, can_access. room gồm id/code/building/is_active. Với Sinh viên mới dùng mật khẩu tạm, `role=student`, `room` là phòng Admin chọn, `must_change_password=true` và `can_access=false`.
 
-## Giới hạn hiện tại
+## Đổi mật khẩu lần đầu
 
-RPC này chỉ đọc hồ sơ. Không cấp quyền cập nhật email/role/status hoặc tự đặt must_change_password=false. Các quyền đọc nghiệp vụ hiện có vẫn kiểm tra tài khoản active và đã đổi mật khẩu.
+1. Flutter dùng `auth.updateUser` để đổi mật khẩu trong Supabase Auth.
+2. `complete_change_password()` lấy hồ sơ của người gọi và kiểm tra tài khoản đang hoạt động. Máy chủ so dấu vân tay băm của mật khẩu hiện tại với dấu vân tay được ghi khi tạo tài khoản. Nếu hai giá trị trùng nhau hoặc thiếu bằng chứng, quyền vẫn bị chặn.
+3. Khi xác nhận thành công, RPC gỡ cờ `must_change_password` và xóa dấu vân tay trong một giao dịch. Flutter đọc lại `get_my_profile()` trước khi điều hướng theo vai trò, kể cả khi mất phản hồi RPC.
 
-**Endpoint đổi mật khẩu bắt buộc chưa triển khai.** Không làm nút gọi updateUser rồi tự sửa flag, cũng không tạo RPC cho client khai rằng đã đổi mật khẩu. Bước tiếp theo cần endpoint server xác thực người gọi, kiểm tra mật khẩu, cập nhật Supabase Auth thành công rồi mới bỏ flag và ghi lịch sử. Không dùng auth.users.updated_at làm bằng chứng đổi mật khẩu vì trường này có thể đổi bởi thao tác khác.
+Luồng trên áp dụng cho tài khoản được tạo hoặc đặt lại mật khẩu tạm từ tab Tài khoản của Admin. Dấu vân tay nằm trong schema riêng. RPC nghiệp vụ kiểm tra tài khoản active và cờ đổi mật khẩu. [Migration Phần 6](../database/20261109191056_admin_account_provisioning.sql) · [Migration Phần 7](../database/20261109194250_admin_account_lifecycle.sql)
 
-Flutter triển khai đăng nhập bằng email/mật khẩu, khôi phục session và gọi lại
-`get_my_profile()` trước khi mở placeholder theo role. Chưa kiểm thử luồng này
-với tài khoản Supabase thật. Endpoint đổi mật khẩu bắt buộc vẫn chưa có; ứng dụng
-chặn truy cập nghiệp vụ cho đến khi backend cung cấp endpoint an toàn.
+## Phiên sau khi Admin đổi trạng thái hoặc đặt lại mật khẩu
+
+- Khóa và thu hồi chặn đăng nhập ở Supabase Auth. Mở khóa hoặc khôi phục cho phép tạo phiên mới. Các thao tác này giữ cờ đổi mật khẩu nếu tài khoản đang dùng mật khẩu tạm.
+- Đặt lại mật khẩu thay mật khẩu trong Auth, thu hồi các phiên cũ và đặt lại cờ `must_change_password` cho cùng tài khoản. Khi tài khoản đang khóa, người dùng vẫn cần Admin mở khóa trước khi đăng nhập.
+- Data API kiểm tra phiên đã bị thu hồi trước khi chạy RPC. Bucket ảnh riêng kiểm tra cùng điều kiện qua RLS. Luồng tải hồ sơ yêu cầu đăng nhập lại khi API trả `ACCOUNT_SESSION_REVOKED`.

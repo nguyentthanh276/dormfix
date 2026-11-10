@@ -164,9 +164,7 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-        await tester.tap(find.byKey(const Key('technician-tracking-menu')));
-        await tester.pumpAndSettle();
-        await tester.tap(find.text('Lịch sử công việc'));
+        await tester.tap(find.text('Lịch sử'));
         await tester.pump();
         auth.hasSession = false;
         await tester.pumpAndSettle();

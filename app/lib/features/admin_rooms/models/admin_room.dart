@@ -10,24 +10,35 @@ class AdminRoom {
     required this.code,
     required this.building,
     required this.isActive,
-    this.studentNames = const [],
-  });
+    List<String> studentNames = const [],
+  }) : studentNames = List.unmodifiable(studentNames);
 
   factory AdminRoom.fromJson(Map<String, dynamic> json) {
-    List<String> students = [];
-    if (json['profiles'] != null && json['profiles'] is List) {
-      students = (json['profiles'] as List)
-          .map((p) => (p['full_name'] ?? '') as String)
-          .where((name) => name.isNotEmpty)
-          .toList();
+    final id = json['id'] as String;
+    final code = json['code'] as String;
+    final building = json['building'] as String;
+    final profiles = json['profiles'] as List;
+    if (id.isEmpty ||
+        code.trim().isEmpty ||
+        building.trim().isEmpty ||
+        json['student_count'] is! int ||
+        json['student_count'] != profiles.length) {
+      throw const FormatException('Invalid room fields.');
     }
-
     return AdminRoom(
-      id: json['id'] as String,
-      code: json['code'] as String,
-      building: json['building'] as String,
+      id: id,
+      code: code,
+      building: building,
       isActive: json['is_active'] as bool,
-      studentNames: students,
+      studentNames: profiles
+          .map((profile) {
+            final name = (profile as Map)['full_name'] as String;
+            if (name.trim().isEmpty) {
+              throw const FormatException('Invalid student name.');
+            }
+            return name;
+          })
+          .toList(growable: false),
     );
   }
 }

@@ -16,10 +16,15 @@ class NewRepairRequest {
     required this.categoryId,
     required this.description,
     this.attachments = const [],
+    this.requestId,
   });
 
   final String title;
   final String categoryId;
   final String description;
   final List<AttachmentDraft> attachments;
+
+  /// Retain this UUID and the same immutable draft when retrying an uncertain
+  /// create. The server treats it as the idempotency key.
+  final String? requestId;
 }

@@ -1,6 +1,31 @@
 # Tài khoản demo DormFix
 
-## Bước cần người dùng thực hiện trên Dashboard
+## Dữ liệu demo Ký túc xá Tòa A và Tòa B
+
+Dữ liệu đã được xác minh trên Supabase ngày 10/11/2026. Tòa A có các phòng `A101`, `A102`, `A201`. Tòa B có các phòng `B101`, `B102`, `B201`.
+
+| Vai trò | Tên hiển thị | Email | Phòng |
+| --- | --- | --- | --- |
+| Admin | Admin | `admin@example.com` | |
+| Sinh viên | Nguyễn Minh Anh | `student@example.com` | `A101` |
+| Sinh viên | Trần Gia Huy | `student.b101@example.com` | `B101` |
+| Kỹ thuật viên | Lê Văn Phúc | `technican@example.com` | |
+| Kỹ thuật viên | Phạm Quốc Hưng | `technician.b@example.com` | |
+
+Các tài khoản dùng mật khẩu demo đã thống nhất. Leader cung cấp mật khẩu riêng.
+
+| Mã yêu cầu | Phòng | Tiêu đề | Trạng thái ban đầu |
+| --- | --- | --- | --- |
+| `DF000367` | `A101` | Đèn bàn học không sáng | Chờ tiếp nhận |
+| `DF000368` | `B101` | Vòi nước bị rò | Đang xử lý |
+| `DF000369` | `A101` | Cửa tủ bị lệch bản lề | Chờ xác nhận |
+| `DF000370` | `B101` | Ổ cắm bị lỏng | Hoàn tất |
+
+Yêu cầu `DF000368` đang giao cho Lê Văn Phúc và có thể chuyển sang Phạm Quốc Hưng khi demo. `A101` dùng lại ID của phòng cũ `DEMO-A101`. Yêu cầu cũ vẫn hiển thị mã phòng và tòa đã lưu tại thời điểm gửi.
+
+## Thiết lập ban đầu
+
+### Bước cần người dùng thực hiện trên Dashboard
 
 Vào Authentication → Users → Add user → Create new user. Tạo:
 
@@ -10,7 +35,7 @@ Vào Authentication → Users → Add user → Create new user. Tạo:
 
 Nhập mật khẩu đã thống nhất trực tiếp trên Dashboard; không ghi mật khẩu vào Git. Chọn Auto Confirm User để dùng email demo không có hộp thư. Không dùng Invite user vì email demo không nhận được thư. Giữ tính năng tự đăng kí của ứng dụng ở trạng thái tắt.
 
-## Liên kết hồ sơ
+### Liên kết hồ sơ
 
 Sau khi đủ ba Auth users đã xác nhận, chạy `002_demo_profiles.sql` bằng SQL Editor của project phát triển. Script dừng nếu thiếu user hoặc trùng hồ sơ/mã định danh; không tự thay đổi tài khoản cũ.
 

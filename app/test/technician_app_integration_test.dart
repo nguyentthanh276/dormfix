@@ -22,7 +22,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('DormFix - Kỹ thuật viên'), findsOneWidget);
+      expect(find.text('Công việc được giao'), findsOneWidget);
       expect(find.text('Vòi nước rò rỉ'), findsOneWidget);
       expect(jobs.listCalls, 1);
       await tester.tap(find.text('Vòi nước rò rỉ'));
@@ -60,7 +60,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Cần đổi mật khẩu'), findsOneWidget);
-    expect(find.text('DormFix - Kỹ thuật viên'), findsNothing);
+    expect(find.text('Công việc được giao'), findsNothing);
     expect(jobs.listCalls, 0);
     expect(jobs.detailCalls, 0);
 

@@ -44,3 +44,24 @@ class ManagedAccount {
   final AppRole role;
   final AccountStatus status;
 }
+
+/// Admin-only profile fields. The temporary password is never returned.
+class ManagedAccountDetails extends ManagedAccount {
+  const ManagedAccountDetails({
+    required this.id,
+    required super.fullName,
+    required super.identityCode,
+    required this.email,
+    required this.phone,
+    required super.role,
+    required super.status,
+    required this.mustChangePassword,
+    this.roomId,
+  });
+
+  final String id;
+  final String email;
+  final String phone;
+  final bool mustChangePassword;
+  final String? roomId;
+}

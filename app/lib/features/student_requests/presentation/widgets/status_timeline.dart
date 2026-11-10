@@ -11,8 +11,10 @@ class StatusTimeline extends StatelessWidget {
 
   String _two(int n) => n.toString().padLeft(2, '0');
 
-  String _date(DateTime d) =>
-      '${_two(d.day)}/${_two(d.month)}/${d.year} ${_two(d.hour)}:${_two(d.minute)}';
+  String _date(DateTime value) {
+    final d = value.toLocal();
+    return '${_two(d.day)}/${_two(d.month)}/${d.year} ${_two(d.hour)}:${_two(d.minute)}';
+  }
 
   @override
   Widget build(BuildContext context) {
