@@ -68,7 +68,7 @@ void main() {
   );
 
   testWidgets(
-    'DF-013: Khi nhấn vào thẻ, mở màn hình xác nhận riêng biệt, KHÔNG mở RequestDetailScreen',
+    'DF-013: standalone preview opens read-only confirmation detail',
     (tester) async {
       final repo = MockConfirmationRepository(delay: Duration.zero);
       await tester.pumpWidget(
@@ -84,7 +84,8 @@ void main() {
       // Tuyệt đối không mở màn hình chi tiết tiến độ thông thường
       expect(find.byType(RequestDetailScreen), findsNothing);
       expect(find.text('Xác nhận hoàn tất'), findsWidgets);
-      expect(find.text('Yêu cầu sửa lại'), findsOneWidget);
+      // Preview repositories cannot perform real confirmation actions.
+      expect(find.text('Yêu cầu sửa lại'), findsNothing);
     },
   );
 

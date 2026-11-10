@@ -16,6 +16,19 @@ class ProfileController extends ChangeNotifier {
 
   String? _error;
   String? get error => _error;
+  bool _disposed = false;
+
+  bool _isCurrent(String? identity) =>
+      !_disposed &&
+      identity != null &&
+      authController.profile?.id == identity &&
+      authController.state == AuthViewState.authenticated;
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
 
   UserProfile? get profile => authController.profile;
 
@@ -31,6 +44,8 @@ class ProfileController extends ChangeNotifier {
     if (_isLoading) return;
     final repo = repository;
     if (repo == null) return;
+    final identity = profile?.id;
+    if (!_isCurrent(identity)) return;
 
     _isLoading = true;
     _error = null;
@@ -38,18 +53,21 @@ class ProfileController extends ChangeNotifier {
 
     try {
       final updatedProfile = await repo.getProfile();
+      if (!_isCurrent(identity) || updatedProfile.id != identity) return;
       authController.updateProfileLocally(updatedProfile);
     } on ProfileFailure catch (failure) {
+      if (!_isCurrent(identity)) return;
       _error = failure.message;
       if (failure.signOutRequired) {
         await authController.signOut();
       }
     } catch (_) {
+      if (!_isCurrent(identity)) return;
       _error =
           'Không thể tải thông tin hồ sơ do lỗi kết nối. Vui lòng thử lại.';
     } finally {
       _isLoading = false;
-      notifyListeners();
+      if (!_disposed) notifyListeners();
     }
   }
 
@@ -62,7 +80,7 @@ class ProfileController extends ChangeNotifier {
     }
 
     final currentProfile = profile;
-    if (currentProfile == null) {
+    if (currentProfile == null || !_isCurrent(currentProfile.id)) {
       _error = 'Không tìm thấy phiên đăng nhập hợp lệ.';
       notifyListeners();
       return false;
@@ -92,21 +110,27 @@ class ProfileController extends ChangeNotifier {
       }
 
       final updatedProfile = await repo.updatePhone(phone: normalizedPhone);
+      if (!_isCurrent(currentProfile.id) ||
+          updatedProfile.id != currentProfile.id) {
+        return false;
+      }
       authController.updateProfileLocally(updatedProfile);
       return true;
     } on ProfileFailure catch (failure) {
+      if (!_isCurrent(currentProfile.id)) return false;
       _error = failure.message;
       if (failure.signOutRequired) {
         await authController.signOut();
       }
       return false;
     } catch (_) {
+      if (!_isCurrent(currentProfile.id)) return false;
       _error =
           'Không thể cập nhật số điện thoại do lỗi kết nối. Vui lòng thử lại.';
       return false;
     } finally {
       _isLoading = false;
-      notifyListeners();
+      if (!_disposed) notifyListeners();
     }
   }
 }

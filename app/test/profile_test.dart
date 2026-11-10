@@ -855,8 +855,8 @@ void main() {
       await tester.pumpAndSettle();
 
       // Nút profile trên AppBar
-      expect(find.byKey(const Key('technician-profile-btn')), findsOneWidget);
-      await tester.tap(find.byKey(const Key('technician-profile-btn')));
+      expect(find.byKey(const Key('dormfix-account-menu')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('dormfix-account-menu')));
       await tester.pumpAndSettle();
 
       // Đã mở ProfilePage

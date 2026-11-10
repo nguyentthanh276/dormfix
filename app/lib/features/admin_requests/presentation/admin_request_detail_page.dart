@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/models/repair_status.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/dormfix_app_bar.dart';
 import '../../../core/widgets/status_chip.dart';
 import '../data/admin_request_repository.dart';
 import '../models/admin_request.dart';
@@ -65,8 +66,9 @@ class _AdminRequestDetailPageState extends State<AdminRequestDetailPage> {
   Widget build(BuildContext context) {
     final detail = _detail;
     return Scaffold(
-      appBar: AppBar(
-        title: Text(detail?.request.requestCode ?? 'Chi tiết yêu cầu'),
+      appBar: const DormFixAppBar(
+        title: 'Chi tiết yêu cầu',
+        roleLabel: 'Admin',
       ),
       body: _loading && detail == null
           ? const Center(child: CircularProgressIndicator())
@@ -298,13 +300,15 @@ class _AdminRequestDetailPageState extends State<AdminRequestDetailPage> {
         return;
       }
       String? selectedId;
-      final reasonController = TextEditingController();
+      var reason = '';
       final formKey = GlobalKey<FormState>();
       final selection = await showDialog<Map<String, String>>(
         context: context,
+        useRootNavigator: false,
         builder: (dialogContext) => StatefulBuilder(
           builder: (context, setDialogState) => AlertDialog(
             title: Text(transfer ? 'Đổi Kỹ thuật viên' : 'Phân công yêu cầu'),
+            scrollable: true,
             content: Form(
               key: formKey,
               child: Column(
@@ -335,7 +339,7 @@ class _AdminRequestDetailPageState extends State<AdminRequestDetailPage> {
                   if (transfer) ...[
                     const SizedBox(height: 12),
                     TextFormField(
-                      controller: reasonController,
+                      onChanged: (value) => reason = value,
                       decoration: const InputDecoration(
                         labelText: 'Lý do đổi (bắt buộc)',
                       ),
@@ -360,7 +364,7 @@ class _AdminRequestDetailPageState extends State<AdminRequestDetailPage> {
                   if (formKey.currentState!.validate()) {
                     Navigator.pop(dialogContext, {
                       'technicianId': selectedId!,
-                      'reason': reasonController.text.trim(),
+                      'reason': reason.trim(),
                     });
                   }
                 },
@@ -370,13 +374,15 @@ class _AdminRequestDetailPageState extends State<AdminRequestDetailPage> {
           ),
         ),
       );
-      reasonController.dispose();
       if (selection == null || !mounted) return;
       final id = selection['technicianId']!;
-      final reason = selection['reason']!;
       await _runMutation(
         () => transfer
-            ? widget.repository.transferRequest(widget.requestId, id, reason)
+            ? widget.repository.transferRequest(
+                widget.requestId,
+                id,
+                selection['reason']!,
+              )
             : widget.repository.assignRequest(widget.requestId, id),
         transfer ? 'Đã đổi Kỹ thuật viên.' : 'Đã phân công Kỹ thuật viên.',
       );
@@ -422,16 +428,18 @@ class _AdminRequestDetailPageState extends State<AdminRequestDetailPage> {
   }
 
   Future<String?> _askRequiredText(String title, String label) async {
-    final controller = TextEditingController();
+    var draft = '';
     final formKey = GlobalKey<FormState>();
-    final result = await showDialog<String>(
+    return showDialog<String>(
       context: context,
+      useRootNavigator: false,
       builder: (dialogContext) => AlertDialog(
         title: Text(title),
+        scrollable: true,
         content: Form(
           key: formKey,
           child: TextFormField(
-            controller: controller,
+            onChanged: (value) => draft = value,
             autofocus: true,
             minLines: 2,
             maxLines: 4,
@@ -449,7 +457,7 @@ class _AdminRequestDetailPageState extends State<AdminRequestDetailPage> {
           FilledButton(
             onPressed: () {
               if (formKey.currentState!.validate()) {
-                Navigator.pop(dialogContext, controller.text.trim());
+                Navigator.pop(dialogContext, draft.trim());
               }
             },
             child: const Text('Xác nhận'),
@@ -457,14 +465,13 @@ class _AdminRequestDetailPageState extends State<AdminRequestDetailPage> {
         ],
       ),
     );
-    controller.dispose();
-    return result;
   }
 
   Future<void> _runMutation(
     Future<void> Function() action,
     String success,
   ) async {
+    if (!mounted || _mutating) return;
     setState(() => _mutating = true);
     try {
       await action();

@@ -11,10 +11,12 @@ class TechnicianWorkHistoryView extends StatefulWidget {
     super.key,
     required this.repository,
     required this.onOpenDetail,
+    this.refreshRevision = 0,
   });
 
   final TechnicianTrackingRepository? repository;
   final ValueChanged<String> onOpenDetail;
+  final int refreshRevision;
 
   @override
   State<TechnicianWorkHistoryView> createState() =>
@@ -40,6 +42,8 @@ class _TechnicianWorkHistoryViewState extends State<TechnicianWorkHistoryView>
     super.didUpdateWidget(oldWidget);
     if (oldWidget.repository != widget.repository) {
       _entries = [];
+      unawaited(_load());
+    } else if (oldWidget.refreshRevision != widget.refreshRevision) {
       unawaited(_load());
     }
   }
@@ -166,10 +170,12 @@ class TechnicianNotificationsView extends StatefulWidget {
     super.key,
     required this.repository,
     required this.onOpenDetail,
+    this.refreshRevision = 0,
   });
 
   final TechnicianTrackingRepository? repository;
   final ValueChanged<String> onOpenDetail;
+  final int refreshRevision;
 
   @override
   State<TechnicianNotificationsView> createState() =>
@@ -202,6 +208,8 @@ class _TechnicianNotificationsViewState
       _notifications = [];
       _markingRead.clear();
       _acknowledgedReads.clear();
+      unawaited(_load());
+    } else if (oldWidget.refreshRevision != widget.refreshRevision) {
       unawaited(_load());
     }
   }

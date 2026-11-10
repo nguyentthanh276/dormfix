@@ -32,10 +32,10 @@ class TechnicianJobDetailPage extends StatefulWidget {
 
   @override
   State<TechnicianJobDetailPage> createState() =>
-      _TechnicianJobDetailPageState();
+      TechnicianJobDetailPageState();
 }
 
-class _TechnicianJobDetailPageState extends State<TechnicianJobDetailPage>
+class TechnicianJobDetailPageState extends State<TechnicianJobDetailPage>
     with WidgetsBindingObserver {
   TechnicianJobDetail? _detail;
   String? _error;
@@ -56,6 +56,32 @@ class _TechnicianJobDetailPageState extends State<TechnicianJobDetailPage>
   int _generation = 0;
   int _photoRevision = 0;
   Timer? _refreshTimer;
+
+  /// Home asks before discarding the inline result form. In-flight mutations
+  /// keep their existing completion/identity guards when the user leaves.
+  Future<bool> confirmLeave() async {
+    if (!_showResultForm || _writing) return true;
+    return await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Bỏ kết quả đang nhập?'),
+            content: const Text(
+              'Nội dung và ảnh chưa gửi sẽ bị bỏ khi quay lại danh sách.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Tiếp tục nhập'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Bỏ thay đổi'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  }
 
   @override
   void initState() {
@@ -398,6 +424,17 @@ class _TechnicianJobDetailPageState extends State<TechnicianJobDetailPage>
     if (_loading && detail == null) {
       return const Center(child: CircularProgressIndicator());
     }
+    final currentRework =
+        detail != null && detail.job.status == RepairStatus.awaitingRework
+        ? detail.history.reversed
+              .where(
+                (event) =>
+                    event.newStatus ==
+                        RepairStatus.awaitingRework.databaseValue &&
+                    event.oldStatus != event.newStatus,
+              )
+              .firstOrNull
+        : null;
     return RefreshIndicator(
       onRefresh: _load,
       child: detail == null
@@ -468,6 +505,16 @@ class _TechnicianJobDetailPageState extends State<TechnicianJobDetailPage>
                       color: Theme.of(context).colorScheme.error,
                     ),
                   ),
+                if (currentRework != null &&
+                    currentRework.action == _adminReworkAction &&
+                    currentRework.note != null)
+                  _section('Admin yêu cầu xử lý lại', [
+                    Text(
+                      '${currentRework.actorName} · ${technicianDate(currentRework.occurredAt)}',
+                    ),
+                    const SizedBox(height: 8),
+                    _field('Lý do', currentRework.note!),
+                  ]),
                 if (_canStart(detail))
                   Padding(
                     padding: const EdgeInsets.only(top: 12),
@@ -759,8 +806,11 @@ String _statusLabel(String? value) {
   return 'Đã cập nhật';
 }
 
+const _adminReworkAction = 'admin_rework_for_revoked_student';
+
 String _actionLabel(String action) => switch (action) {
   'created' || 'create' => 'Tạo yêu cầu',
+  'student_edited' => 'Sinh viên chỉnh sửa yêu cầu',
   'assigned' || 'assign' => 'Phân công kỹ thuật viên',
   'started' || 'start' || 'in_progress' => 'Bắt đầu xử lý',
   'continued' => 'Tiếp tục xử lý',
@@ -768,10 +818,14 @@ String _actionLabel(String action) => switch (action) {
   'repair_reported' ||
   'result_submitted' ||
   'reported' => 'Báo cáo kết quả sửa chữa',
-  'rework_requested' || 'rework' => 'Yêu cầu xử lý lại',
-  'reopened' || 'reopen' => 'Mở lại yêu cầu',
-  'completed' || 'complete' || 'confirmed' => 'Hoàn tất',
-  'cancelled' || 'cancel' => 'Hủy yêu cầu',
+  'rework_requested' ||
+  'student_rework_requested' ||
+  'rework' => 'Yêu cầu xử lý lại',
+  _adminReworkAction => 'Admin yêu cầu xử lý lại thay Sinh viên',
+  'admin_confirmed_revoked_student' => 'Admin xác nhận hoàn tất thay Sinh viên',
+  'reopened' || 'reopen' || 'student_reopened' => 'Mở lại yêu cầu',
+  'completed' || 'complete' || 'confirmed' || 'student_confirmed' => 'Hoàn tất',
+  'cancelled' || 'cancel' || 'student_cancelled' => 'Hủy yêu cầu',
   'rejected' || 'reject' => 'Từ chối yêu cầu',
   'transferred' || 'transfer' || 'transferred_out' => 'Chuyển công việc',
   _ => 'Cập nhật yêu cầu',

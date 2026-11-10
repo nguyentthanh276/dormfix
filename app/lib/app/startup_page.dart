@@ -3,10 +3,13 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../core/models/app_role.dart';
+import '../features/admin_accounts/data/admin_account_management_repository.dart';
 import '../features/admin_requests/presentation/admin_home_page.dart';
+import '../features/admin_rooms/data/admin_room_repository.dart';
 import '../features/auth/presentation/auth_controller.dart';
 import '../features/auth/presentation/change_password_page.dart';
 import '../features/auth/presentation/login_page.dart';
+import '../features/incident_categories/data/incident_category_repository.dart';
 import '../features/student_requests/presentation/student_home_page.dart';
 import '../features/technician_jobs/data/technician_jobs_repository.dart';
 import '../features/technician_jobs/data/technician_tracking_repository.dart';
@@ -15,6 +18,8 @@ import '../features/technician_jobs/presentation/technician_home_page.dart';
 import '../features/profile/data/profile_repository.dart';
 import '../features/admin_accounts/data/admin_accounts_repository.dart';
 import '../features/admin_requests/data/admin_request_repository.dart';
+import '../features/student_requests/data/request_repository.dart';
+import '../features/notifications/data/notification_repository.dart';
 
 class StartupPage extends StatefulWidget {
   const StartupPage({
@@ -25,7 +30,12 @@ class StartupPage extends StatefulWidget {
     this.technicianWorkflowRepository,
     this.profileRepository,
     this.adminAccountsRepository,
+    this.adminAccountManagementRepository,
     this.adminRequestRepository,
+    this.adminRoomRepository,
+    this.incidentCategoryRepository,
+    this.studentRequestRepository,
+    this.studentNotificationRepository,
   });
 
   final AuthController controller;
@@ -34,7 +44,12 @@ class StartupPage extends StatefulWidget {
   final TechnicianWorkflowRepository? technicianWorkflowRepository;
   final ProfileRepository? profileRepository;
   final AdminAccountsRepository? adminAccountsRepository;
+  final AdminAccountManagementRepository? adminAccountManagementRepository;
   final AdminRequestRepository? adminRequestRepository;
+  final AdminRoomRepository? adminRoomRepository;
+  final IncidentCategoryRepository? incidentCategoryRepository;
+  final RequestRepository? studentRequestRepository;
+  final NotificationRepository? studentNotificationRepository;
 
   @override
   State<StartupPage> createState() => _StartupPageState();
@@ -57,14 +72,20 @@ class _StartupPageState extends State<StartupPage> {
       AuthViewState.signedOut => LoginPage(controller: widget.controller),
       AuthViewState.authenticated => switch (widget.controller.profile?.role) {
         AppRole.admin => AdminHomePage(
+          key: ValueKey('admin-${widget.controller.profile?.id}'),
           controller: widget.controller,
           accountsRepository: widget.adminAccountsRepository,
+          accountManagementRepository: widget.adminAccountManagementRepository,
           requestsRepository: widget.adminRequestRepository,
+          roomsRepository: widget.adminRoomRepository,
+          categoriesRepository: widget.incidentCategoryRepository,
         ),
         AppRole.student => StudentHomePage(
           key: ValueKey('student-${widget.controller.profile?.id}'),
           controller: widget.controller,
           profileRepository: widget.profileRepository,
+          requestRepository: widget.studentRequestRepository,
+          notificationRepository: widget.studentNotificationRepository,
         ),
         AppRole.technician => TechnicianHomePage(
           key: ValueKey('technician-${widget.controller.profile?.id}'),

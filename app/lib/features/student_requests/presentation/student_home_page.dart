@@ -16,11 +16,13 @@ class StudentHomePage extends StatefulWidget {
     required this.controller,
     this.profileRepository,
     this.notificationRepository,
+    this.requestRepository,
   });
 
   final AuthController controller;
   final ProfileRepository? profileRepository;
   final NotificationRepository? notificationRepository;
+  final RequestRepository? requestRepository;
 
   @override
   State<StudentHomePage> createState() => _StudentHomePageState();
@@ -29,12 +31,13 @@ class StudentHomePage extends StatefulWidget {
 class _StudentHomePageState extends State<StudentHomePage> {
   final _navigatorKey = GlobalKey<NavigatorState>();
 
-  // Đổi MockRequestRepository thành bản Supabase chỉ cần sửa đúng một dòng này.
-  late final RequestRepository _repository = MockRequestRepository(
-    roomCode: widget.controller.profile?.room?.code,
-    studentId: widget.controller.profile!.id,
-    studentName: widget.controller.profile?.fullName ?? 'Sinh viên',
-  );
+  late final RequestRepository _repository =
+      widget.requestRepository ??
+      MockRequestRepository(
+        roomCode: widget.controller.profile?.room?.code,
+        studentId: widget.controller.profile!.id,
+        studentName: widget.controller.profile?.fullName ?? 'Sinh viên',
+      );
 
   late final NotificationRepository _notificationRepository =
       widget.notificationRepository ?? MockNotificationRepository();

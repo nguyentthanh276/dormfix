@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/models/app_role.dart';
+import '../../../core/widgets/dormfix_app_bar.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/info_row.dart';
 import '../../../core/widgets/section_card.dart';
@@ -19,12 +20,16 @@ class ProfilePage extends StatefulWidget {
     this.profileRepository,
     this.onSignOut,
     this.title = 'Hồ sơ cá nhân',
+    this.embedded = false,
+    this.active = true,
   });
 
   final AuthController controller;
   final ProfileRepository? profileRepository;
   final VoidCallback? onSignOut;
   final String title;
+  final bool embedded;
+  final bool active;
 
   @override
   State<ProfilePage> createState() => _ProfilePageState();
@@ -53,6 +58,32 @@ class _ProfilePageState extends State<ProfilePage> {
     _profileController.dispose();
     super.dispose();
   }
+
+  @override
+  void didUpdateWidget(covariant ProfilePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!oldWidget.active && widget.active) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && widget.active) _refresh();
+      });
+    }
+  }
+
+  Future<void> _refresh() async {
+    final oldPhone = widget.controller.profile?.phone ?? '';
+    final hasDraft = _phoneInputController.text != oldPhone;
+    await _profileController.loadProfile(isRefresh: true);
+    if (mounted && !hasDraft) {
+      _phoneInputController.text = widget.controller.profile?.phone ?? '';
+    }
+  }
+
+  Widget _page({required Widget body}) => widget.embedded
+      ? body
+      : Scaffold(
+          appBar: DormFixAppBar(title: widget.title),
+          body: body,
+        );
 
   Future<void> _submitPhone() async {
     FocusScope.of(context).unfocus();
@@ -95,8 +126,7 @@ class _ProfilePageState extends State<ProfilePage> {
         final profile = widget.controller.profile;
 
         if (profile == null) {
-          return Scaffold(
-            appBar: AppBar(title: Text(widget.title)),
+          return _page(
             body: Center(
               child: _profileController.error != null
                   ? ErrorView(
@@ -137,13 +167,12 @@ class _ProfilePageState extends State<ProfilePage> {
         final identityLabel = isStudent ? 'Mã sinh viên' : 'Mã kỹ thuật viên';
         final roomCode = profile.room?.code ?? 'Chưa được gắn phòng';
 
-        return Scaffold(
-          appBar: AppBar(title: Text(widget.title)),
+        return _page(
           body: RefreshIndicator(
-            onRefresh: () => _profileController.loadProfile(isRefresh: true),
+            onRefresh: _refresh,
             child: ListView(
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(16),
               children: [
                 // Card Avatar & Tên tóm tắt (Họ tên hiển thị duy nhất tại đây)
                 SectionCard(
@@ -157,12 +186,14 @@ class _ProfilePageState extends State<ProfilePage> {
                           children: [
                             Row(
                               children: [
-                                Text(
-                                  profile.fullName ?? 'Chưa có tên',
-                                  key: const Key('profile-name'),
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
+                                Flexible(
+                                  child: Text(
+                                    profile.fullName ?? 'Chưa có tên',
+                                    key: const Key('profile-name'),
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w700,
+                                    ),
                                   ),
                                 ),
                                 const SizedBox(width: 6),

@@ -99,9 +99,9 @@ Future<TechnicianTestAuthRepository> _openAuthenticatedEditor(
   await tester.pump(const Duration(milliseconds: 300));
   await created;
   // Returning to the list tab reloads the newly created request.
-  await tester.tap(find.byIcon(Icons.add_box_outlined));
+  await tester.tap(find.text('Cá nhân'));
   await tester.pumpAndSettle();
-  await tester.tap(find.byIcon(Icons.build_circle_outlined));
+  await tester.tap(find.text('Yêu cầu'));
   await tester.pumpAndSettle();
   await _openEditor(tester);
   return auth;

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/dormfix_app_bar.dart';
+
 import '../models/password_rules.dart';
 import 'auth_controller.dart';
 
@@ -39,8 +41,8 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: const Text('DormFix'),
+    appBar: DormFixAppBar(
+      title: 'DormFix',
       actions: [
         Padding(
           padding: const EdgeInsets.only(right: 8),

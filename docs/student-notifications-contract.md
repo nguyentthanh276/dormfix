@@ -26,7 +26,11 @@ Client không truyền người nhận, thời gian đọc, nội dung hoặc lo
 
 Mọi thao tác kiểm tra phiên còn hạn trước/sau request. Đổi tài khoản hoặc đăng xuất trong khi chờ phản hồi làm kết quả cũ bị loại bỏ, kể cả khi quay lại tài khoản ban đầu; refresh token cùng tài khoản vẫn hợp lệ. Lỗi SQL/HTTP/transport được chuyển thành thông báo an toàn; không hiển thị payload, thông tin SQL hoặc token.
 
-`StudentHomePage` vẫn dùng `MockNotificationRepository` vì repository yêu cầu Sinh viên hiện vẫn là mock. Adapter Supabase chưa được nối vào luồng chạy thật; không trộn UUID yêu cầu thật với ID mock. Việc nối backend tạo/đọc yêu cầu và thông báo cần được thực hiện cùng nhau. Mock notification dùng cho UI/test; không xác nhận đã kiểm thử HTTP hoặc triển khai backend.
+`DormFixApp` truyền `SupabaseNotificationRepository` và `SupabaseRequestRepository` xuống `StudentHomePage`. Bấm thông báo đánh dấu mục đó đã đọc rồi tải chi tiết theo UUID để máy chủ kiểm tra quyền. Tab Thông báo hiển thị số chưa đọc từ Supabase và cập nhật khi tải lại hộp thư, đánh dấu đã đọc hoặc quay lại ứng dụng.
+
+Phần 4 đã triển khai ngày 10/11/2026. Khi Admin chuyển yêu cầu từ Chờ tiếp nhận sang Đã phân công hoặc Từ chối, trigger tạo một thông báo `assigned` hoặc `rejected` cho Sinh viên sở hữu yêu cầu trong cùng giao dịch. Thông báo chứa nội dung chung. Lý do từ chối nằm trong chi tiết yêu cầu. Chuyển giao KTV và cập nhật không đổi trạng thái không tạo thêm thông báo phân công. Dữ liệu cũ giữ nguyên. [Migration sự kiện](../database/20261109184537_student_notification_events.sql)
+
+Phần 2 đã kiểm tra bằng SDK thật các thông báo `repair_reported` từ hai vòng gửi kết quả. Phần 4 kiểm tra thông báo phân công cho `DF000338` và từ chối cho `DF000339`. Cả hai mở đúng yêu cầu. Đánh dấu một mục đã đọc làm số chưa đọc giảm một và lần gọi lại giữ nguyên thời điểm đọc. [Kết quả triển khai](../database/DEPLOYMENT.md)
 
 ## Kiểm thử
 

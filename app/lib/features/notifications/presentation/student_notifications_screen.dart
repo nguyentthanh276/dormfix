@@ -14,11 +14,19 @@ import '../models/app_notification.dart';
 class StudentNotificationsScreen extends StatefulWidget {
   final NotificationRepository notificationRepository;
   final RequestRepository requestRepository;
+  final bool embedded;
+  final bool active;
+  final int refreshRevision;
+  final VoidCallback? onUnreadStateChanged;
 
   const StudentNotificationsScreen({
     super.key,
     required this.notificationRepository,
     required this.requestRepository,
+    this.embedded = false,
+    this.active = true,
+    this.refreshRevision = 0,
+    this.onUnreadStateChanged,
   });
 
   @override
@@ -53,6 +61,9 @@ class _StudentNotificationsScreenState
       _acknowledgedReads.clear();
       _opening = false;
       _markingAll = false;
+      _load();
+    } else if ((!oldWidget.active && widget.active) ||
+        oldWidget.refreshRevision != widget.refreshRevision) {
       _load();
     }
   }
@@ -97,6 +108,7 @@ class _StudentNotificationsScreenState
     } finally {
       if (mounted && generation == _generation) {
         setState(() => _loading = false);
+        widget.onUnreadStateChanged?.call();
       }
     }
   }
@@ -122,6 +134,7 @@ class _StudentNotificationsScreenState
             n.isRead || !unreadIds.contains(n.id) ? n : n.copyWith(readAt: now),
         ];
       });
+      widget.onUnreadStateChanged?.call();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Đã đánh dấu tất cả là đã đọc')),
       );
@@ -155,11 +168,13 @@ class _StudentNotificationsScreenState
             );
           }
         });
+        widget.onUnreadStateChanged?.call();
       }
       if (!mounted || identityGeneration != _identityGeneration) return;
 
       // 2. Mở đúng màn hình tương ứng với trạng thái yêu cầu
-      if (item.eventType == NotificationEventType.repairReported) {
+      if (item.eventType == NotificationEventType.repairReported &&
+          widget.requestRepository.supportsConfirmationActions) {
         // Trường hợp kỹ thuật viên đã sửa xong: mở màn hình xác nhận nghiệm thu (DF-013)
         await Navigator.of(context).push<void>(
           MaterialPageRoute(
@@ -243,6 +258,26 @@ class _StudentNotificationsScreenState
   Widget build(BuildContext context) {
     final hasUnread = _notifications.any((n) => !n.isRead);
 
+    if (widget.embedded) {
+      return Column(
+        children: [
+          if (hasUnread)
+            Align(
+              alignment: Alignment.centerRight,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: TextButton.icon(
+                  onPressed: _opening || _markingAll ? null : _markAllAsRead,
+                  icon: const Icon(Icons.done_all_rounded),
+                  label: const Text('Đánh dấu tất cả đã đọc'),
+                ),
+              ),
+            ),
+          Expanded(child: _buildBody()),
+        ],
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Thông báo'),
@@ -273,7 +308,8 @@ class _StudentNotificationsScreenState
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView.separated(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        key: const PageStorageKey('student-notifications-list'),
+        padding: const EdgeInsets.all(16),
         itemCount: _notifications.length,
         separatorBuilder: (context, index) => const SizedBox(height: 8),
         itemBuilder: (context, index) {
@@ -324,7 +360,10 @@ class _StudentNotificationsScreenState
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         Container(
                           padding: const EdgeInsets.symmetric(
@@ -344,7 +383,6 @@ class _StudentNotificationsScreenState
                             ),
                           ),
                         ),
-                        const Spacer(),
                         Text(
                           _formatTime(item.createdAt),
                           style: TextStyle(
@@ -353,7 +391,6 @@ class _StudentNotificationsScreenState
                           ),
                         ),
                         if (!item.isRead) ...[
-                          const SizedBox(width: 6),
                           Container(
                             width: 8,
                             height: 8,

@@ -268,30 +268,26 @@ void main() {
         await tester.tap(find.text('Đăng nhập'));
         await tester.pumpAndSettle();
 
-        // Sinh viên đã có màn thật (Yêu cầu của tôi); 2 vai trò còn lại vẫn là màn tạm.
+        // All roles enter their shared mobile shell after authentication.
         if (role == AppRole.technician) {
           expect(find.text('Vai trò: ${role.label}'), findsOneWidget);
         }
         expect(find.text(_homeTitle(role)), findsOneWidget);
         if (role == AppRole.admin) {
-          await tester.tap(find.byIcon(Icons.home_repair_service_outlined));
-          await tester.pumpAndSettle();
           expect(find.text('DF000101'), findsOneWidget);
-          await tester.tap(find.byType(BackButton));
-          await tester.pumpAndSettle();
-          expect(find.text(_homeTitle(role)), findsOneWidget);
-
-          await tester.tap(find.byIcon(Icons.manage_accounts_outlined));
+          await tester.tap(find.text('Tài khoản'));
           await tester.pumpAndSettle();
           expect(find.text('SV001'), findsOneWidget);
-          await tester.tap(find.byType(BackButton));
+          await tester.tap(find.byKey(const Key('dormfix-account-menu')));
           await tester.pumpAndSettle();
-          expect(find.text(_homeTitle(role)), findsOneWidget);
         }
-        if (role == AppRole.student) {
-          // Màn sinh viên tải dữ liệu mock (0,6 giây): chờ xong rồi sang tab Tài khoản.
-          await tester.pump(const Duration(seconds: 1));
-          await tester.tap(find.byIcon(Icons.person_outline));
+        if (role != AppRole.admin) {
+          await tester.tap(
+            find.descendant(
+              of: find.byType(NavigationBar),
+              matching: find.text('Cá nhân'),
+            ),
+          );
           await tester.pumpAndSettle();
         }
         await tester.tap(find.text('Đăng xuất'));
@@ -335,9 +331,9 @@ void main() {
 }
 
 String _homeTitle(AppRole role) => switch (role) {
-  AppRole.admin => 'DormFix - Quản lý KTX',
+  AppRole.admin => 'Quản lý yêu cầu',
   AppRole.student => 'Yêu cầu của tôi',
-  AppRole.technician => 'DormFix - Kỹ thuật viên',
+  AppRole.technician => 'Công việc được giao',
 };
 
 UserProfile profile({

@@ -28,7 +28,7 @@ class AdapterConfirmationRepository implements ConfirmationRepository {
         .toList();
 
     // Nếu dữ liệu hiện tại chưa có đơn chờ xác nhận, cung cấp đơn mẫu để kiểm thử DF-013
-    if (awaiting.isEmpty) {
+    if (awaiting.isEmpty && requestRepository.allowsDemoFallback) {
       final room = myRequests.isNotEmpty
           ? myRequests.first.roomCode
           : 'DEMO-A101';
@@ -52,6 +52,7 @@ class AdapterConfirmationRepository implements ConfirmationRepository {
     try {
       return await requestRepository.fetchRequestDetail(requestId);
     } catch (_) {
+      if (!requestRepository.allowsDemoFallback) rethrow;
       return RequestDetail(
         request: RepairRequest(
           id: requestId,
