@@ -1,3 +1,4 @@
+// Nguyễn Tiến Thành — DF-023 đến DF-026: Gọi dịch vụ cập nhật công việc.
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/models/repair_status.dart';
@@ -39,6 +40,7 @@ class SupabaseTechnicianWorkflowRepository
     accessDenied: true,
   );
 
+  // DF-023: Gọi RPC bắt đầu công việc đã phân công.
   @override
   Future<TechnicianWriteReceipt> startJob({
     required String requestId,
@@ -49,6 +51,7 @@ class SupabaseTechnicianWorkflowRepository
     expectedVersion: expectedVersion,
   );
 
+  // DF-024: Gọi RPC tiếp tục công việc đang chờ xử lý lại.
   @override
   Future<TechnicianWriteReceipt> continueJob({
     required String requestId,
@@ -60,6 +63,7 @@ class SupabaseTechnicianWorkflowRepository
     exactReceipt: true,
   );
 
+  // DF-025: Gọi RPC xác nhận tiếp tục sau chuyển giao.
   @override
   Future<TechnicianWriteReceipt> confirmTransfer({
     required String requestId,
@@ -71,6 +75,7 @@ class SupabaseTechnicianWorkflowRepository
     exactReceipt: true,
   );
 
+  // DF-023–025: Gửi ID, phiên bản và kiểm tra biên nhận cập nhật.
   Future<TechnicianWriteReceipt> _transitionToInProgress({
     required String rpcName,
     required String requestId,
@@ -116,6 +121,7 @@ class SupabaseTechnicianWorkflowRepository
     }
   }
 
+  // DF-026: Tải ảnh, gửi kết quả và dùng lại ID khi thử lại.
   @override
   Future<TechnicianWriteReceipt> submitResult(
     TechnicianResultSubmission submission,

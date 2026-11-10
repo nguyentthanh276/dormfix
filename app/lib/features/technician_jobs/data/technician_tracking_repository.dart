@@ -1,3 +1,4 @@
+// Nguyễn Tiến Thành — DF-027
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/technician_tracking.dart';
@@ -31,6 +32,7 @@ class SupabaseTechnicianTrackingRepository
     accessDenied: true,
   );
 
+  // DF-027: Gọi RPC lịch sử và chuyển từng dòng sang model phân công.
   @override
   Future<List<TechnicianWorkHistoryEntry>> fetchWorkHistory() =>
       _request(() async {
@@ -43,6 +45,7 @@ class SupabaseTechnicianTrackingRepository
         );
       }, 'Không thể tải lịch sử công việc. Vui lòng thử lại.');
 
+  // DF-027: Tải thông báo bằng phiên đăng nhập hiện tại.
   @override
   Future<List<TechnicianNotification>> fetchNotifications() =>
       _request(() async {
@@ -55,6 +58,7 @@ class SupabaseTechnicianTrackingRepository
         );
       }, 'Không thể tải thông báo. Vui lòng thử lại.');
 
+  // DF-027: Gửi ID thông báo và nhận mốc đã đọc từ server.
   @override
   Future<DateTime> markNotificationRead(String notificationId) =>
       _request(() async {

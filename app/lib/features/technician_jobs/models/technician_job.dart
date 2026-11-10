@@ -1,3 +1,4 @@
+// Nguyễn Tiến Thành — DF-020, DF-022: Model danh sách và chi tiết công việc.
 import '../../../core/models/repair_status.dart';
 import 'technician_workflow.dart';
 
@@ -16,6 +17,7 @@ class TechnicianJob {
     required this.version,
   });
 
+  // DF-020: Đọc thông tin một công việc và ánh xạ mã trạng thái.
   factory TechnicianJob.fromJson(Map<String, dynamic> json) {
     final statusValue = _string(json, 'status');
     final statuses = RepairStatus.values.where(
@@ -64,6 +66,7 @@ class TechnicianJobDetail {
     this.workflow = const TechnicianWorkflowCapabilities(),
   });
 
+  // DF-022: Đọc liên hệ, ảnh, kết quả, phản hồi và lịch sử.
   factory TechnicianJobDetail.fromJson(Map<String, dynamic> json) {
     final student = _map(json['student']);
     return TechnicianJobDetail(

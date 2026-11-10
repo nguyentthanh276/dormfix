@@ -1,3 +1,4 @@
+// Nguyễn Tiến Thành — DF-020, DF-022: Đọc công việc và ảnh đính kèm.
 import 'dart:typed_data';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -33,6 +34,7 @@ class SupabaseTechnicianJobsRepository implements TechnicianJobsRepository {
     accessDenied: true,
   );
 
+  // DF-020: Gọi RPC lấy danh sách được giao và chuyển JSON thành model.
   @override
   Future<List<TechnicianJob>> fetchJobs() => _read(() async {
     final result = await _client.rpc('technician_list_jobs');
@@ -48,6 +50,7 @@ class SupabaseTechnicianJobsRepository implements TechnicianJobsRepository {
     'Không thể tải chi tiết công việc. Vui lòng thử lại.',
   );
 
+  // DF-022: Gửi ID yêu cầu và kiểm tra kết quả trả về đúng công việc.
   Future<TechnicianJobDetail> _loadDetail(String requestId) async {
     if (requestId.trim().isEmpty) throw _accessFailure;
     final result = await _client.rpc(
@@ -59,6 +62,7 @@ class SupabaseTechnicianJobsRepository implements TechnicianJobsRepository {
     return detail;
   }
 
+  // DF-022: Đối chiếu ảnh với yêu cầu trước khi tải từ kho riêng tư.
   @override
   Future<Uint8List> fetchAttachment(
     String requestId,

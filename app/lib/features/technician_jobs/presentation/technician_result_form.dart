@@ -1,3 +1,4 @@
+// Nguyễn Tiến Thành — DF-026
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -47,6 +48,7 @@ class _TechnicianResultFormState extends State<TechnicianResultForm>
   @override
   bool get wantKeepAlive => true;
 
+  // DF-026: Chọn ảnh và kiểm tra số lượng, dung lượng trước khi thêm vào form.
   Future<void> _pick() async {
     if (_busy || widget.retryOnly) return;
     setState(() {
@@ -96,6 +98,7 @@ class _TechnicianResultFormState extends State<TechnicianResultForm>
     }
   }
 
+  // DF-026: Tạo dữ liệu lần gửi rồi chuyển cho màn chi tiết qua onSubmit.
   Future<void> _submit() async {
     if (_busy) return;
     try {
