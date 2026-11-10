@@ -1,3 +1,4 @@
+// Nguyễn Tiến Thành — DF-027
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -62,6 +63,7 @@ class _TechnicianWorkHistoryViewState extends State<TechnicianWorkHistoryView>
       _error = null;
     });
     try {
+      // DF-027: Tải lịch sử theo từng lần phân công.
       final entries = await repository.fetchWorkHistory();
       if (!mounted || generation != _generation) return;
       setState(() => _entries = entries);
@@ -228,6 +230,7 @@ class _TechnicianNotificationsViewState
       _error = null;
     });
     try {
+      // DF-027: Tải thông báo và giữ mốc đọc đã được xác nhận.
       final notifications = await repository.fetchNotifications();
       if (!mounted || generation != _generation) return;
       setState(() {
@@ -264,6 +267,7 @@ class _TechnicianNotificationsViewState
     }
   }
 
+  // DF-027: Dùng mốc thời gian từ server để cập nhật trạng thái đã đọc.
   Future<bool> _markRead(TechnicianNotification notification) async {
     final repository = widget.repository;
     if (repository == null || _markingRead.contains(notification.id)) {
@@ -314,6 +318,7 @@ class _TechnicianNotificationsViewState
     }
   }
 
+  // DF-027: Đánh dấu đã đọc rồi mở chi tiết nếu thông báo còn quyền truy cập.
   Future<void> _open(TechnicianNotification notification) async {
     final identityGeneration = _identityGeneration;
     if (!await _markRead(notification) ||

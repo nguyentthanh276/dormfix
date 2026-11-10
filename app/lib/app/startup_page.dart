@@ -87,6 +87,7 @@ class _StartupPageState extends State<StartupPage> {
           requestRepository: widget.studentRequestRepository,
           notificationRepository: widget.studentNotificationRepository,
         ),
+        // DF-020–027: Mở màn Kỹ thuật viên theo vai trò đã xác thực.
         AppRole.technician => TechnicianHomePage(
           key: ValueKey('technician-${widget.controller.profile?.id}'),
           controller: widget.controller,

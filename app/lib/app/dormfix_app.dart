@@ -89,6 +89,7 @@ class _DormFixAppState extends State<DormFixApp> {
               ? 'Chưa sẵn sàng kết nối dịch vụ. Hãy kiểm tra cấu hình Supabase.'
               : null),
     );
+    // DF-020–027: Khởi tạo các repository cho màn Kỹ thuật viên.
     _technicianJobsRepository =
         widget.technicianJobsRepository ??
         (widget.backendReady

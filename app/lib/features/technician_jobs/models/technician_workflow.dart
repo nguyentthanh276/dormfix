@@ -1,3 +1,4 @@
+// Nguyễn Tiến Thành — DF-023 đến DF-026: Model quyền thao tác và dữ liệu gửi.
 import 'dart:math';
 import 'dart:typed_data';
 
@@ -31,6 +32,7 @@ class TechnicianWorkflowCapabilities {
     this.blockedReason,
   });
 
+  // DF-023–026: Đọc quyền thao tác do server trả về cho màn chi tiết.
   factory TechnicianWorkflowCapabilities.fromJson(Map<String, dynamic> json) {
     final start = json['can_start'];
     final canContinue = json.containsKey('can_continue')
@@ -90,6 +92,7 @@ class TechnicianResultPhoto {
     required this.extension,
   }) : bytes = Uint8List.fromList(bytes).asUnmodifiableView();
 
+  // DF-026: Kiểm tra dung lượng và nhận diện định dạng ảnh.
   factory TechnicianResultPhoto.fromBytes({
     required String name,
     required Uint8List bytes,
@@ -145,6 +148,7 @@ class TechnicianResultSubmission {
     required List<TechnicianResultPhoto> photos,
   }) : photos = List.unmodifiable(photos);
 
+  // DF-026: Kiểm tra nội dung, số ảnh và tạo ID cho lần gửi.
   factory TechnicianResultSubmission.create({
     required TechnicianJob job,
     required String content,
@@ -193,6 +197,7 @@ class TechnicianWriteReceipt {
     this.replayed = false,
   });
 
+  // DF-023–026: Đọc ID, trạng thái và phiên bản sau cập nhật.
   factory TechnicianWriteReceipt.fromJson(Map<String, dynamic> json) {
     final requestId = json['request_id'];
     final status = json['status'];

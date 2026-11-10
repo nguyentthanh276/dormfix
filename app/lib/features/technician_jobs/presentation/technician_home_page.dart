@@ -1,3 +1,6 @@
+// Đóng góp của Nguyễn Tiến Thành (DF-020, DF-021, DF-022, DF-027).
+// Phạm vi gồm danh sách, bộ lọc, mở chi tiết, lịch sử và thông báo.
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -155,6 +158,7 @@ class _TechnicianHomePageState extends State<TechnicianHomePage>
       _hasAccess &&
       widget.controller.profile?.id == identity;
 
+  // DF-020: Tải danh sách theo phiên hiện tại và gộp các lượt tải lại đang chờ.
   Future<void> _loadJobs() async {
     final repository = widget.repository;
     if (!_hasAccess || repository == null) return;
@@ -221,6 +225,7 @@ class _TechnicianHomePageState extends State<TechnicianHomePage>
     unawaited(_loadJobs());
   }
 
+  // DF-027: Đổi tab và yêu cầu tải lại lịch sử hoặc thông báo khi được chọn.
   void _selectSection(int index) {
     final section = _TechnicianSection.values[index];
     setState(() {
@@ -232,6 +237,7 @@ class _TechnicianHomePageState extends State<TechnicianHomePage>
     if (section == _TechnicianSection.jobs) unawaited(_loadJobs());
   }
 
+  // DF-022: Mở chi tiết bằng ID từ thẻ công việc, lịch sử hoặc thông báo.
   void _openTrackedJob(String requestId) {
     if (!_hasAccess || widget.repository == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -390,6 +396,7 @@ class _TechnicianHomePageState extends State<TechnicianHomePage>
                           index: _section.index,
                           children: [
                             _buildList(),
+                            // DF-027: Chỉ tạo màn theo dõi sau khi mở tab.
                             if (_visited.contains(_TechnicianSection.history))
                               TechnicianWorkHistoryView(
                                 key: ValueKey('$identity:history'),
@@ -428,6 +435,7 @@ class _TechnicianHomePageState extends State<TechnicianHomePage>
                         ),
                       ),
                     ),
+                    // DF-022: Truyền ID đã chọn vào màn chi tiết.
                     if (selectedId != null && widget.repository != null)
                       TechnicianJobDetailPage(
                         key: _detailKey,
@@ -447,6 +455,7 @@ class _TechnicianHomePageState extends State<TechnicianHomePage>
     );
   }
 
+  // DF-020: Hiển thị danh sách, trạng thái tải, rỗng và lỗi có nút thử lại.
   Widget _buildList() {
     if (widget.repository == null) {
       return const TechnicianJobsMessage(
@@ -484,6 +493,7 @@ class _TechnicianHomePageState extends State<TechnicianHomePage>
     );
   }
 
+  // DF-021: Lọc dữ liệu đã tải theo trạng thái đang chọn trên máy.
   Widget _buildFilteredJobs() {
     final visibleJobs = _selectedStatus == null
         ? _jobs
@@ -521,6 +531,7 @@ class _TechnicianHomePageState extends State<TechnicianHomePage>
                     return Card(
                       clipBehavior: Clip.antiAlias,
                       child: InkWell(
+                        // DF-022: Dùng ID của thẻ vừa bấm để mở chi tiết.
                         onTap: () => _openTrackedJob(job.id),
                         child: Padding(
                           padding: const EdgeInsets.all(16),
@@ -554,6 +565,7 @@ class _TechnicianHomePageState extends State<TechnicianHomePage>
     );
   }
 
+  // DF-021: Cập nhật trạng thái lọc khi chọn một nhãn.
   Widget _buildStatusFilters() => SingleChildScrollView(
     scrollDirection: Axis.horizontal,
     padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
@@ -576,6 +588,7 @@ class _TechnicianHomePageState extends State<TechnicianHomePage>
     ),
   );
 
+  // DF-021: Số trên mỗi nhãn được đếm từ danh sách gốc đã tải.
   int _statusCount(RepairStatus status) =>
       _jobs.where((job) => job.status == status).length;
 }

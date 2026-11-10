@@ -1,3 +1,4 @@
+// Người đóng góp: Nguyễn Tiến Thành | UC: DF-022, DF-023, DF-024, DF-025, DF-026.
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -152,6 +153,7 @@ class TechnicianJobDetailPageState extends State<TechnicianJobDetailPage>
     }
   }
 
+  // DF-022: Tải chi tiết theo ID yêu cầu và bỏ phản hồi đã cũ.
   Future<void> _load() async {
     if (!_foreground) return;
     if (_inFlight || _writing) {
@@ -285,6 +287,7 @@ class TechnicianJobDetailPageState extends State<TechnicianJobDetailPage>
     _pickingImages = false;
   }
 
+  // DF-023: Gửi ID và phiên bản để bắt đầu xử lý.
   Future<void> _startJob() async {
     final detail = _detail;
     if (detail == null || !_canStart(detail)) return;
@@ -296,6 +299,7 @@ class TechnicianJobDetailPageState extends State<TechnicianJobDetailPage>
     );
   }
 
+  // DF-024: Tiếp tục công việc đang Chờ xử lý lại khi có quyền.
   Future<void> _continueJob() async {
     final detail = _detail;
     if (detail == null || !_canContinue(detail)) return;
@@ -308,6 +312,7 @@ class TechnicianJobDetailPageState extends State<TechnicianJobDetailPage>
     );
   }
 
+  // DF-025: Xác nhận tiếp tục sau lần chuyển giao hiện tại.
   Future<void> _confirmTransfer() async {
     final detail = _detail;
     if (detail == null || !_canConfirmTransfer(detail)) return;
@@ -320,6 +325,7 @@ class TechnicianJobDetailPageState extends State<TechnicianJobDetailPage>
     );
   }
 
+  // DF-026: Kiểm tra ID và phiên bản trước khi gửi kết quả.
   Future<void> _submitResult(TechnicianResultSubmission submission) async {
     final detail = _detail;
     if (detail == null ||
@@ -334,6 +340,7 @@ class TechnicianJobDetailPageState extends State<TechnicianJobDetailPage>
     );
   }
 
+  // DF-023–DF-026: Chặn thao tác chồng nhau và tải lại chi tiết nếu còn quyền.
   Future<void> _write(
     Future<TechnicianWriteReceipt> Function() operation, {
     TechnicianResultSubmission? submission,
@@ -515,6 +522,7 @@ class TechnicianJobDetailPageState extends State<TechnicianJobDetailPage>
                     const SizedBox(height: 8),
                     _field('Lý do', currentRework.note!),
                   ]),
+                // DF-023–DF-026: Hiện nút theo trạng thái và quyền từ máy chủ.
                 if (_canStart(detail))
                   Padding(
                     padding: const EdgeInsets.only(top: 12),
