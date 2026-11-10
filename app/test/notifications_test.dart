@@ -1,7 +1,6 @@
 import 'package:dormfix/features/notifications/data/mock_notification_repository.dart';
 import 'package:dormfix/features/notifications/models/app_notification.dart';
 import 'package:dormfix/features/notifications/presentation/student_notifications_screen.dart';
-import 'package:dormfix/features/student_confirmation/presentation/request_confirmation_screen.dart';
 import 'package:dormfix/features/student_requests/data/mock_request_repository.dart';
 import 'package:dormfix/features/student_requests/presentation/my_requests_screen.dart';
 import 'package:dormfix/features/student_requests/presentation/request_detail_screen.dart';
@@ -174,7 +173,7 @@ void main() {
     });
 
     testWidgets(
-      'Bấm vào thông báo sửa xong -> mở màn hình xác nhận nghiệm thu (DF-013)',
+      'repair notification opens read-only detail when actions are unavailable',
       (tester) async {
         final notifRepo = MockNotificationRepository(delay: Duration.zero);
         final reqRepo = MockRequestRepository(delay: Duration.zero);
@@ -193,8 +192,7 @@ void main() {
         await tester.tap(find.textContaining('Bình nóng lạnh không vào điện'));
         await tester.pumpAndSettle();
 
-        // Mở màn hình xác nhận nghiệm thu riêng
-        expect(find.byType(RequestConfirmationScreen), findsOneWidget);
+        expect(find.byType(RequestDetailScreen), findsOneWidget);
       },
     );
 

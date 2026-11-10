@@ -1,3 +1,6 @@
+// Đóng góp của Nguyễn Tiến Thành (DF-022).
+// Phạm vi gồm tải, hiển thị và dọn ảnh đính kèm trong màn chi tiết.
+
 import 'dart:async';
 import 'dart:typed_data';
 
@@ -50,6 +53,7 @@ class _TechnicianJobPhotoState extends State<TechnicianJobPhoto> {
     }
   }
 
+  // DF-022: Xóa ảnh khỏi bộ nhớ đệm và dọn vùng dữ liệu ảnh của widget.
   void _clearImage() {
     final image = _image;
     _image = null;
@@ -58,6 +62,7 @@ class _TechnicianJobPhotoState extends State<TechnicianJobPhoto> {
     _bytes = null;
   }
 
+  // DF-022: Tải ảnh theo ID yêu cầu và thông tin ảnh đính kèm.
   Future<void> _load() async {
     if (_loading) return;
     final generation = ++_generation;
@@ -77,6 +82,7 @@ class _TechnicianJobPhotoState extends State<TechnicianJobPhoto> {
       });
     } on TechnicianJobsFailure catch (failure) {
       if (!mounted || generation != _generation) return;
+      // DF-022: Báo màn chi tiết khi không còn quyền tải ảnh.
       if (failure.accessDenied) widget.onAccessDenied();
     } catch (_) {
       // Transport and object paths must not be rendered to the user.

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/models/repair_status.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/dormfix_app_bar.dart';
 import '../../../core/widgets/status_chip.dart';
 import '../data/admin_request_repository.dart';
 import '../models/admin_request.dart';
@@ -15,12 +16,14 @@ class AdminRequestsPage extends StatefulWidget {
     required this.isAdmin,
     required this.onSignOut,
     this.onBack,
+    this.embedded = false,
   });
 
   final AdminRequestRepository repository;
   final bool isAdmin;
   final VoidCallback onSignOut;
   final VoidCallback? onBack;
+  final bool embedded;
 
   @override
   State<AdminRequestsPage> createState() => _AdminRequestsPageState();
@@ -39,8 +42,10 @@ class _AdminRequestsPageState extends State<AdminRequestsPage> {
   bool _loading = true;
   bool _hasMore = false;
   int _offset = 0;
+  int _loadGeneration = 0;
   String? _error;
   String? _optionsError;
+  bool _filtersExpanded = false;
 
   @override
   void initState() {
@@ -68,18 +73,20 @@ class _AdminRequestsPageState extends State<AdminRequestsPage> {
     );
   }
 
-  Future<void> _load({bool append = false}) async {
+  Future<void> _load({bool append = false, bool refreshOptions = false}) async {
     if (!widget.isAdmin) return;
+    final generation = ++_loadGeneration;
+    final offset = append ? _offset : 0;
     setState(() {
       _loading = true;
       _error = null;
-      if (!append) _offset = 0;
     });
     AdminRequestFilterOptions? options = _options;
-    String? optionsError;
-    if (options == null) {
+    String? optionsError = _optionsError;
+    if (options == null || refreshOptions) {
       try {
         options = await widget.repository.fetchFilterOptions();
+        optionsError = null;
       } catch (error) {
         optionsError = error is AdminRequestFailure
             ? error.message
@@ -87,34 +94,56 @@ class _AdminRequestsPageState extends State<AdminRequestsPage> {
       }
     }
 
+    if (!mounted || generation != _loadGeneration) return;
+    final availableOptions = options;
+    if (availableOptions != _options || optionsError != _optionsError) {
+      setState(() {
+        _options = availableOptions;
+        _optionsError = optionsError;
+        if (availableOptions != null) {
+          _roomId = _retainedOption(_roomId, availableOptions.rooms);
+          _categoryId = _retainedOption(
+            _categoryId,
+            availableOptions.categories,
+          );
+          _technicianId = _retainedOption(
+            _technicianId,
+            availableOptions.technicians,
+          );
+        }
+      });
+    }
+    final filters = _filters;
     try {
       final page = await widget.repository.fetchRequests(
-        filters: _filters,
-        offset: append ? _offset : 0,
+        filters: filters,
+        offset: offset,
         limit: _pageSize + 1,
       );
-      if (!mounted) return;
+      if (!mounted || generation != _loadGeneration) return;
       setState(() {
-        _options = options ?? _options;
-        _optionsError = optionsError;
         _hasMore = page.length > _pageSize;
         _requests = append
             ? [..._requests, ...page.take(_pageSize)]
             : page.take(_pageSize).toList();
-        _offset = append ? _offset + _pageSize : _pageSize;
+        _offset = offset + _pageSize;
         _loading = false;
       });
     } catch (error) {
-      if (!mounted) return;
+      if (!mounted || generation != _loadGeneration) return;
       setState(() {
         _loading = false;
-        _optionsError = optionsError;
         _error = error is AdminRequestFailure
             ? error.message
             : 'Không thể tải yêu cầu sửa chữa. Vui lòng thử lại.';
       });
     }
   }
+
+  String? _retainedOption(
+    String? selection,
+    List<AdminRequestOption> options,
+  ) => options.any((option) => option.id == selection) ? selection : null;
 
   Future<void> _pickDateRange() async {
     final now = DateTime.now();
@@ -125,6 +154,7 @@ class _AdminRequestsPageState extends State<AdminRequestsPage> {
       initialDateRange: _dateRange,
       helpText: 'Chọn khoảng ngày',
       saveText: 'ÁP DỤNG',
+      useRootNavigator: false,
       cancelText: 'HỦY',
       builder: (context, child) =>
           Theme(data: Theme.of(context), child: child!),
@@ -165,9 +195,61 @@ class _AdminRequestsPageState extends State<AdminRequestsPage> {
       );
     }
 
+    final body = RefreshIndicator(
+      onRefresh: () => _load(refreshOptions: true),
+      child: LayoutBuilder(
+        builder: (context, constraints) => ListView(
+          key: const PageStorageKey('admin-requests-list'),
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: EdgeInsets.symmetric(
+            horizontal: constraints.maxWidth < 650 ? 16 : 28,
+            vertical: 22,
+          ),
+          children: [
+            Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1180),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (!widget.embedded) ...[
+                      _heading(context),
+                      const SizedBox(height: 18),
+                    ],
+                    if (widget.embedded)
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: OutlinedButton.icon(
+                          onPressed: () => setState(
+                            () => _filtersExpanded = !_filtersExpanded,
+                          ),
+                          icon: Icon(
+                            _filtersExpanded
+                                ? Icons.expand_less
+                                : Icons.filter_list,
+                          ),
+                          label: Text(
+                            _hasFilters ? 'Bộ lọc đang áp dụng' : 'Bộ lọc',
+                          ),
+                        ),
+                      ),
+                    if (!widget.embedded || _filtersExpanded)
+                      _filterPanel(context),
+                    const SizedBox(height: 18),
+                    _requestList(context),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (widget.embedded) return body;
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Yêu cầu sửa chữa'),
+      appBar: DormFixAppBar(
+        title: 'Yêu cầu sửa chữa',
+        roleLabel: 'Admin',
         leading: widget.onBack == null
             ? null
             : BackButton(onPressed: widget.onBack),
@@ -177,38 +259,9 @@ class _AdminRequestsPageState extends State<AdminRequestsPage> {
             onPressed: widget.onSignOut,
             icon: const Icon(Icons.logout),
           ),
-          const SizedBox(width: 8),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: _load,
-        child: LayoutBuilder(
-          builder: (context, constraints) => ListView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: EdgeInsets.symmetric(
-              horizontal: constraints.maxWidth < 650 ? 16 : 28,
-              vertical: 22,
-            ),
-            children: [
-              Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 1180),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _heading(context),
-                      const SizedBox(height: 18),
-                      _filterPanel(context),
-                      const SizedBox(height: 18),
-                      _requestList(context),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+      body: body,
     );
   }
 
@@ -268,7 +321,7 @@ class _AdminRequestsPageState extends State<AdminRequestsPage> {
                 ),
               ),
               TextButton.icon(
-                onPressed: _loading ? null : _load,
+                onPressed: _loading ? null : () => _load(refreshOptions: true),
                 icon: const Icon(Icons.refresh),
                 label: const Text('Tải lại bộ lọc'),
               ),
@@ -539,20 +592,27 @@ class _AdminRequestsPageState extends State<AdminRequestsPage> {
 
   Widget _requestTile(BuildContext context, AdminRequestSummary request) =>
       InkWell(
-        onTap: () => Navigator.of(context).push<void>(
-          MaterialPageRoute(
-            builder: (_) => AdminRequestDetailPage(
-              repository: widget.repository,
-              requestId: request.id,
+        onTap: () async {
+          await Navigator.of(context).push<void>(
+            MaterialPageRoute(
+              builder: (_) => AdminRequestDetailPage(
+                repository: widget.repository,
+                requestId: request.id,
+              ),
             ),
-          ),
-        ),
+          );
+          if (mounted) await _load(refreshOptions: true);
+        },
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Row(
+              Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 10,
+                runSpacing: 8,
                 children: [
                   Text(
                     request.requestCode,
@@ -561,7 +621,6 @@ class _AdminRequestsPageState extends State<AdminRequestsPage> {
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                  const Spacer(),
                   StatusChip(request.status),
                 ],
               ),
@@ -599,7 +658,12 @@ class _AdminRequestsPageState extends State<AdminRequestsPage> {
     children: [
       Icon(icon, size: 16, color: Colors.black54),
       const SizedBox(width: 5),
-      Text(text, style: const TextStyle(color: Colors.black87, fontSize: 13)),
+      Flexible(
+        child: Text(
+          text,
+          style: const TextStyle(color: Colors.black87, fontSize: 13),
+        ),
+      ),
     ],
   );
 

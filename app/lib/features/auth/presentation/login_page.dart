@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/dormfix_app_bar.dart';
+
 import 'auth_controller.dart';
 
 class LoginPage extends StatefulWidget {
@@ -37,7 +39,7 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('DormFix')),
+    appBar: const DormFixAppBar(title: 'DormFix'),
     body: Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),

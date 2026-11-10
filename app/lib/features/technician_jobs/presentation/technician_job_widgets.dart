@@ -1,7 +1,12 @@
+// Đóng góp của Nguyễn Tiến Thành (DF-020, DF-022).
+// Tiện ích hiển thị được dùng lại trong bộ lọc DF-021 và theo dõi DF-027.
+
 import 'package:flutter/material.dart';
 
 import '../../../core/models/repair_status.dart';
+import '../../../core/widgets/status_chip.dart';
 
+// DF-020: Định dạng ngày giờ địa phương để hiển thị trên thẻ công việc.
 String technicianDate(DateTime date) {
   final local = date.toLocal();
   String two(int value) => value.toString().padLeft(2, '0');
@@ -9,34 +14,17 @@ String technicianDate(DateTime date) {
       '${two(local.hour)}:${two(local.minute)}';
 }
 
+// DF-022: Dùng nhãn trạng thái chung cho danh sách, chi tiết và lịch sử.
 class TechnicianStatusBadge extends StatelessWidget {
   const TechnicianStatusBadge({super.key, required this.status});
 
   final RepairStatus status;
 
   @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final color = switch (status) {
-      RepairStatus.completed => Colors.green.shade800,
-      RepairStatus.cancelled || RepairStatus.rejected => scheme.error,
-      RepairStatus.awaitingRework => Colors.deepOrange.shade800,
-      _ => scheme.secondary,
-    };
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        child: Text(status.label, style: TextStyle(color: color)),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => StatusChip(status);
 }
 
+// DF-027: Dùng lại thông báo và nút thao tác ở các màn theo dõi.
 class TechnicianJobsMessage extends StatelessWidget {
   const TechnicianJobsMessage({
     super.key,

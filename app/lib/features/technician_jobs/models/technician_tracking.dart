@@ -1,3 +1,4 @@
+// Nguyễn Tiến Thành — DF-027
 import '../../../core/models/repair_status.dart';
 
 /// One assignment, including a frozen summary after it leaves the technician.
@@ -14,6 +15,7 @@ class TechnicianWorkHistoryEntry {
     required this.canOpenDetail,
   });
 
+  // DF-027: Đọc từng lần phân công và kiểm tra cờ mở chi tiết khớp với dữ liệu.
   factory TechnicianWorkHistoryEntry.fromJson(Map<String, dynamic> json) {
     final canOpenDetail = _boolean(json, 'can_open_detail');
     final requestId = _nullableString(json, 'request_id');
@@ -64,6 +66,7 @@ class TechnicianNotification {
     required this.canOpenDetail,
   });
 
+  // DF-027: Đọc sự kiện, thời gian và dữ liệu mở chi tiết từ JSON thông báo.
   factory TechnicianNotification.fromJson(Map<String, dynamic> json) {
     final canOpenDetail = _boolean(json, 'can_open_detail');
     final requestId = _nullableString(json, 'request_id');
@@ -100,6 +103,7 @@ class TechnicianNotification {
   final String? requestId;
   final bool canOpenDetail;
 
+  // DF-027: Tạo bản sao thông báo với mốc đã đọc vừa nhận.
   TechnicianNotification copyWithReadAt(DateTime value) =>
       TechnicianNotification(
         id: id,

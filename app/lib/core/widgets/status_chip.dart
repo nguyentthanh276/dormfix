@@ -21,8 +21,10 @@ class StatusChip extends StatelessWidget {
           width: 0.8,
         ),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
+      child: Wrap(
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 6,
+        runSpacing: 2,
         children: [
           Container(
             width: 6,
@@ -32,7 +34,6 @@ class StatusChip extends StatelessWidget {
               shape: BoxShape.circle,
             ),
           ),
-          const SizedBox(width: 6),
           Text(
             status.label,
             style: TextStyle(

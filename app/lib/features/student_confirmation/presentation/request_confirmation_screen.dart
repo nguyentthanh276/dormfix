@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/dormfix_app_bar.dart';
+
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/section_card.dart';
 import '../../../core/widgets/status_chip.dart';
 import '../../student_requests/models/request_detail.dart';
 import '../../student_requests/presentation/widgets/category_icon.dart';
+import '../../student_requests/presentation/request_detail_screen.dart';
 import '../data/confirmation_repository.dart';
 
-/// DF-013: Màn hình xác nhận kết quả sửa chữa riêng biệt
-/// Tách rời với màn hình xem chi tiết tiến độ (RequestDetailScreen).
+/// Compatibility route for old notification links. Live data uses the shared
+/// detail screen; the legacy mock preview is read-only.
 class RequestConfirmationScreen extends StatefulWidget {
   final String requestId;
   final ConfirmationRepository repository;
@@ -31,18 +34,11 @@ class _RequestConfirmationScreenState extends State<RequestConfirmationScreen> {
   RequestDetail? _detail;
   bool _loading = false;
   String? _errorText;
-  final TextEditingController _feedbackController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _load();
-  }
-
-  @override
-  void dispose() {
-    _feedbackController.dispose();
-    super.dispose();
+    if (widget.repository is! AdapterConfirmationRepository) _load();
   }
 
   Future<void> _load() async {
@@ -66,10 +62,17 @@ class _RequestConfirmationScreenState extends State<RequestConfirmationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final repository = widget.repository;
+    if (repository is AdapterConfirmationRepository) {
+      return RequestDetailScreen(
+        repository: repository.requestRepository,
+        requestId: widget.requestId,
+        onRequestChanged: widget.onConfirmed,
+      );
+    }
     return Scaffold(
-      appBar: AppBar(title: const Text('Xác nhận hoàn tất')),
+      appBar: const DormFixAppBar(title: 'Xác nhận hoàn tất'),
       body: _buildBody(),
-      bottomNavigationBar: _detail != null ? _buildBottomActions() : null,
     );
   }
 
@@ -247,69 +250,7 @@ class _RequestConfirmationScreenState extends State<RequestConfirmationScreen> {
           ),
         ),
         const SizedBox(height: 16),
-
-        // Nhận xét của sinh viên (tùy chọn)
-        SectionCard(
-          title: 'Nhận xét nghiệm thu (Tùy chọn)',
-          child: TextField(
-            controller: _feedbackController,
-            maxLines: 3,
-            decoration: const InputDecoration(
-              hintText: 'Nhập đánh giá hoặc ghi chú nghiệm thu của bạn...',
-            ),
-          ),
-        ),
       ],
-    );
-  }
-
-  Widget _buildBottomActions() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            offset: const Offset(0, -2),
-            blurRadius: 6,
-          ),
-        ],
-      ),
-      child: SafeArea(
-        child: Row(
-          children: [
-            Expanded(
-              child: OutlinedButton(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Yêu cầu sửa lại (sẵn sàng cho DF-015)'),
-                    ),
-                  );
-                },
-                child: const Text('Yêu cầu sửa lại'),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: FilledButton(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Đã gửi xác nhận hoàn tất (sẵn sàng cho DF-014)',
-                      ),
-                    ),
-                  );
-                  widget.onConfirmed?.call();
-                },
-                child: const Text('Xác nhận hoàn tất'),
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

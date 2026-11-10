@@ -4,21 +4,33 @@ import 'package:flutter/material.dart';
 
 import '../../../core/models/app_role.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/dormfix_app_bar.dart';
+import '../../admin_rooms/data/admin_room_repository.dart';
+import '../data/admin_account_lifecycle_repository.dart';
+import '../data/admin_account_management_repository.dart';
 import '../data/admin_accounts_repository.dart';
 import '../models/managed_account.dart';
+import 'admin_account_action_dialog.dart';
+import 'admin_account_form_page.dart';
 
-/// DF-028/029/030: danh sách, tìm kiếm và lọc tài khoản dành riêng cho Admin.
+/// Danh sách và quản lý tài khoản dành riêng cho Admin (DF-028–038).
 class AdminAccountsPage extends StatefulWidget {
   const AdminAccountsPage({
     super.key,
     required this.repository,
     required this.isAdmin,
+    this.managementRepository,
+    this.roomRepository,
     this.onBack,
+    this.embedded = false,
   });
 
   final AdminAccountsRepository repository;
   final bool isAdmin;
+  final AdminAccountManagementRepository? managementRepository;
+  final AdminRoomRepository? roomRepository;
   final VoidCallback? onBack;
+  final bool embedded;
 
   @override
   State<AdminAccountsPage> createState() => _AdminAccountsPageState();
@@ -34,6 +46,8 @@ class _AdminAccountsPageState extends State<AdminAccountsPage> {
   int _offset = 0;
   bool _loading = true;
   bool _hasMore = false;
+  bool _accountOverlayOpen = false;
+  int _loadGeneration = 0;
   String? _error;
 
   @override
@@ -51,6 +65,7 @@ class _AdminAccountsPageState extends State<AdminAccountsPage> {
 
   Future<void> _load({bool append = false}) async {
     if (!widget.isAdmin) return;
+    final generation = ++_loadGeneration;
     setState(() {
       _loading = true;
       _error = null;
@@ -64,7 +79,7 @@ class _AdminAccountsPageState extends State<AdminAccountsPage> {
         offset: append ? _offset : 0,
         limit: _pageSize + 1,
       );
-      if (!mounted) return;
+      if (!mounted || generation != _loadGeneration) return;
       final hasMore = items.length > _pageSize;
       setState(() {
         _accounts = append
@@ -75,9 +90,13 @@ class _AdminAccountsPageState extends State<AdminAccountsPage> {
         _loading = false;
       });
     } catch (error) {
-      if (mounted) {
+      if (mounted && generation == _loadGeneration) {
         setState(() {
           _loading = false;
+          if (error is AdminAccountsFailure && error.accessDenied) {
+            _accounts = const [];
+            _hasMore = false;
+          }
           _error = error is AdminAccountsFailure
               ? error.message
               : 'Không thể tải danh sách tài khoản. Vui lòng thử lại.';
@@ -105,6 +124,80 @@ class _AdminAccountsPageState extends State<AdminAccountsPage> {
   bool get _hasFilters =>
       _search.text.trim().isNotEmpty || _role != null || _status != null;
 
+  bool get _canOpenAccountOverlay =>
+      !_accountOverlayOpen && !_loading && _error == null;
+
+  AdminAccountLifecycleRepository? get _lifecycleRepository {
+    final management = widget.managementRepository;
+    return management is AdminAccountLifecycleRepository
+        ? management as AdminAccountLifecycleRepository
+        : null;
+  }
+
+  Future<void> _openForm([ManagedAccount? account]) async {
+    final repository = widget.managementRepository;
+    if (!widget.isAdmin || repository == null || !_canOpenAccountOverlay) {
+      return;
+    }
+    _debounce?.cancel();
+    setState(() => _accountOverlayOpen = true);
+    final saved = await Navigator.of(context).push<ManagedAccountDetails>(
+      MaterialPageRoute(
+        builder: (_) => AdminAccountFormPage(
+          repository: repository,
+          roomRepository: widget.roomRepository,
+          identityCode: account?.identityCode,
+        ),
+      ),
+    );
+    if (!mounted) return;
+    setState(() => _accountOverlayOpen = false);
+    if (saved != null) {
+      final message = account == null
+          ? 'Đã tạo tài khoản ${saved.identityCode}. Tài khoản cần đổi mật khẩu khi đăng nhập lần đầu.'
+          : 'Đã cập nhật tài khoản ${saved.identityCode}.';
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
+    }
+    await _load();
+  }
+
+  Future<void> _openAction(
+    ManagedAccount account,
+    AdminAccountAction action,
+  ) async {
+    final management = widget.managementRepository;
+    final lifecycle = _lifecycleRepository;
+    if (!widget.isAdmin ||
+        management == null ||
+        lifecycle == null ||
+        !_canOpenAccountOverlay) {
+      return;
+    }
+    _debounce?.cancel();
+    setState(() => _accountOverlayOpen = true);
+    final result = await showDialog<AdminAccountActionResult>(
+      context: context,
+      useRootNavigator: false,
+      barrierDismissible: false,
+      builder: (_) => AdminAccountActionDialog(
+        account: account,
+        action: action,
+        managementRepository: management,
+        lifecycleRepository: lifecycle,
+        roomRepository: widget.roomRepository,
+      ),
+    );
+    if (!mounted) return;
+    setState(() => _accountOverlayOpen = false);
+    if (result == AdminAccountActionResult.saved) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(action.successMessage(account.identityCode))),
+      );
+    }
+    if (result != null) await _load();
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!widget.isAdmin) {
@@ -113,42 +206,60 @@ class _AdminAccountsPageState extends State<AdminAccountsPage> {
       );
     }
 
+    final body = RefreshIndicator(
+      onRefresh: _load,
+      child: LayoutBuilder(
+        builder: (context, constraints) => ListView(
+          key: const PageStorageKey('admin-accounts-list'),
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: EdgeInsets.symmetric(
+            horizontal: constraints.maxWidth < 600 ? 16 : 28,
+            vertical: 24,
+          ),
+          children: [
+            Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1180),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (!widget.embedded) ...[
+                      _pageHeading(context),
+                      const SizedBox(height: 22),
+                    ],
+                    if (widget.managementRepository != null) ...[
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: FilledButton.icon(
+                          key: const Key('admin-add-account'),
+                          onPressed: _canOpenAccountOverlay ? _openForm : null,
+                          icon: const Icon(Icons.person_add_outlined),
+                          label: const Text('Tạo tài khoản'),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                    _filterCard(context),
+                    const SizedBox(height: 20),
+                    _accountsCard(context),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (widget.embedded) return body;
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Quản lý tài khoản'),
+      appBar: DormFixAppBar(
+        title: 'Quản lý tài khoản',
+        roleLabel: 'Admin',
         leading: widget.onBack == null
             ? null
             : BackButton(onPressed: widget.onBack),
       ),
-      body: RefreshIndicator(
-        onRefresh: _load,
-        child: LayoutBuilder(
-          builder: (context, constraints) => ListView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: EdgeInsets.symmetric(
-              horizontal: constraints.maxWidth < 600 ? 16 : 28,
-              vertical: 24,
-            ),
-            children: [
-              Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 1180),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _pageHeading(context),
-                      const SizedBox(height: 22),
-                      _filterCard(context),
-                      const SizedBox(height: 20),
-                      _accountsCard(context),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+      body: body,
     );
   }
 
@@ -339,26 +450,31 @@ class _AdminAccountsPageState extends State<AdminAccountsPage> {
                 style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
             ),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: DataTable(
-              horizontalMargin: 20,
-              columnSpacing: 34,
-              headingRowHeight: 54,
-              dataRowMinHeight: 68,
-              dataRowMaxHeight: 76,
-              headingRowColor: WidgetStatePropertyAll(
-                AppColors.pageBg.withValues(alpha: 0.75),
+          if (widget.embedded)
+            for (final account in _accounts) _mobileAccountCard(account)
+          else
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: DataTable(
+                horizontalMargin: 20,
+                columnSpacing: 34,
+                headingRowHeight: 54,
+                dataRowMinHeight: 68,
+                dataRowMaxHeight: 76,
+                headingRowColor: WidgetStatePropertyAll(
+                  AppColors.pageBg.withValues(alpha: 0.75),
+                ),
+                columns: [
+                  const DataColumn(label: Text('Họ tên')),
+                  const DataColumn(label: Text('Mã định danh')),
+                  const DataColumn(label: Text('Vai trò')),
+                  const DataColumn(label: Text('Trạng thái')),
+                  if (widget.managementRepository != null)
+                    const DataColumn(label: Text('Thao tác')),
+                ],
+                rows: _accounts.map(_accountRow).toList(),
               ),
-              columns: const [
-                DataColumn(label: Text('Họ tên')),
-                DataColumn(label: Text('Mã định danh')),
-                DataColumn(label: Text('Vai trò')),
-                DataColumn(label: Text('Trạng thái')),
-              ],
-              rows: _accounts.map(_accountRow).toList(),
             ),
-          ),
           if (_loading)
             const Padding(
               padding: EdgeInsets.all(12),
@@ -376,6 +492,51 @@ class _AdminAccountsPageState extends State<AdminAccountsPage> {
               ),
             ),
         ],
+      ],
+    ),
+  );
+
+  Widget _mobileAccountCard(ManagedAccount account) => Padding(
+    padding: const EdgeInsets.all(14),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            CircleAvatar(
+              backgroundColor: AppColors.primary.withValues(alpha: 0.12),
+              foregroundColor: AppColors.primaryDark,
+              child: Text(_initials(account.fullName)),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    account.fullName,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(account.identityCode),
+                ],
+              ),
+            ),
+            if (widget.managementRepository != null) _accountActions(account),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _RolePill(role: account.role),
+            _StatusPill(status: account.status),
+          ],
+        ),
+        const SizedBox(height: 12),
+        const Divider(height: 1),
       ],
     ),
   );
@@ -419,6 +580,31 @@ class _AdminAccountsPageState extends State<AdminAccountsPage> {
       ),
       DataCell(_RolePill(role: account.role)),
       DataCell(_StatusPill(status: account.status)),
+      if (widget.managementRepository != null)
+        DataCell(_accountActions(account)),
+    ],
+  );
+
+  Widget _accountActions(ManagedAccount account) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      IconButton(
+        key: ValueKey('admin-edit-account-${account.identityCode}'),
+        tooltip: 'Cập nhật tài khoản ${account.identityCode}',
+        icon: const Icon(Icons.edit_outlined),
+        onPressed: _canOpenAccountOverlay ? () => _openForm(account) : null,
+      ),
+      if (_lifecycleRepository != null)
+        PopupMenuButton<AdminAccountAction>(
+          key: ValueKey('admin-account-actions-${account.identityCode}'),
+          tooltip: 'Thao tác tài khoản ${account.identityCode}',
+          enabled: _canOpenAccountOverlay,
+          onSelected: (action) => _openAction(account, action),
+          itemBuilder: (_) => [
+            for (final action in AdminAccountAction.forStatus(account.status))
+              PopupMenuItem(value: action, child: Text(action.label)),
+          ],
+        ),
     ],
   );
 

@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/dormfix_app_bar.dart';
 import '../../../core/widgets/error_view.dart';
 import '../data/request_repository.dart';
 import '../models/incident_category.dart';
 import '../models/new_repair_request.dart';
 import '../models/request_rules.dart';
+import '../models/student_request_id.dart';
 import 'widgets/category_tile.dart';
 
 /// DF-007: form tạo yêu cầu sửa chữa kèm tối đa 5 ảnh.
@@ -39,19 +41,82 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
 
   bool _loadingCategories = false;
   bool _submitting = false; // true khi đang gửi: khóa nút để không gửi lặp
+  bool _allowPop = false;
+  bool _confirmingLeave = false;
+  bool _pickingImages = false;
+  bool _uncertain = false;
+  NewRepairRequest? _pendingRequest;
   String? _errorText;
 
   @override
   void initState() {
     super.initState();
+    _titleCtrl.addListener(_draftChanged);
+    _descCtrl.addListener(_draftChanged);
     _loadCategories();
   }
 
   @override
   void dispose() {
+    _titleCtrl.removeListener(_draftChanged);
+    _descCtrl.removeListener(_draftChanged);
     _titleCtrl.dispose();
     _descCtrl.dispose();
     super.dispose();
+  }
+
+  bool get _hasDraft =>
+      _titleCtrl.text.isNotEmpty ||
+      _descCtrl.text.isNotEmpty ||
+      _categoryId != null ||
+      _images.isNotEmpty;
+
+  void _draftChanged() {
+    if (mounted) {
+      setState(() {
+        if (!_submitting && !_uncertain) _pendingRequest = null;
+      });
+    }
+  }
+
+  Future<void> _leave() async {
+    if (_submitting || _confirmingLeave) return;
+    if (!_hasDraft || _allowPop) {
+      Navigator.of(context).pop();
+      return;
+    }
+    _confirmingLeave = true;
+    final discard = await showDialog<bool>(
+      context: context,
+      useRootNavigator: false,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(
+          _uncertain ? 'Kiểm tra danh sách yêu cầu?' : 'Bỏ yêu cầu đang nhập?',
+        ),
+        content: Text(
+          _uncertain
+              ? 'Yêu cầu có thể đã được lưu. Hãy kiểm tra danh sách trước khi tạo một yêu cầu mới.'
+              : 'Nội dung chưa gửi sẽ không được lưu.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Tiếp tục nhập'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(_uncertain ? 'Xem danh sách' : 'Bỏ thay đổi'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    _confirmingLeave = false;
+    if (discard != true) return;
+    setState(() => _allowPop = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) Navigator.of(context).pop();
+    });
   }
 
   Future<void> _loadCategories() async {
@@ -62,6 +127,8 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
     try {
       final result = await widget.repository.fetchCategories();
       if (mounted) setState(() => _categories = result);
+    } on RequestFailure catch (failure) {
+      if (mounted) setState(() => _errorText = failure.message);
     } catch (_) {
       if (mounted) {
         setState(() => _errorText = 'Không tải được loại sự cố. Hãy thử lại.');
@@ -77,27 +144,37 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
   }
 
   Future<void> _pickImages() async {
-    final files = await _picker.pickMultiImage();
-    for (final file in files) {
-      final bytes = await file.readAsBytes();
-      final problem = RequestRules.checkNewImage(
-        currentCount: _images.length,
-        sizeBytes: bytes.length,
-        fileName: file.name,
-      );
-      if (!mounted) return;
-      if (problem != null) {
-        _showMessage(problem);
-        continue; // bỏ qua ảnh sai, vẫn xét ảnh tiếp theo
+    if (_pickingImages || _submitting || _uncertain) return;
+    setState(() => _pickingImages = true);
+    try {
+      final files = await _picker.pickMultiImage();
+      for (final file in files) {
+        if (!mounted || _submitting || _uncertain) return;
+        final bytes = await file.readAsBytes();
+        final problem = RequestRules.checkNewImage(
+          currentCount: _images.length,
+          sizeBytes: bytes.length,
+          fileName: file.name,
+        );
+        if (!mounted || _submitting || _uncertain) return;
+        if (problem != null) {
+          _showMessage(problem);
+          continue; // bỏ qua ảnh sai, vẫn xét ảnh tiếp theo
+        }
+        setState(() {
+          _pendingRequest = null;
+          _images.add(AttachmentDraft(name: file.name, bytes: bytes));
+        });
       }
-      setState(
-        () => _images.add(AttachmentDraft(name: file.name, bytes: bytes)),
-      );
+    } catch (_) {
+      if (mounted) _showMessage('Không thể chọn ảnh. Vui lòng thử lại.');
+    } finally {
+      if (mounted) setState(() => _pickingImages = false);
     }
   }
 
   Future<void> _submit() async {
-    if (_submitting) return; // chống gửi lặp (ngoài việc khóa nút)
+    if (_submitting || _pickingImages) return;
     FocusScope.of(context).unfocus();
 
     // Loại sự cố chọn bằng lưới ô nên kiểm tra riêng, ngoài Form.
@@ -106,26 +183,47 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
     final formOk = _formKey.currentState?.validate() ?? false;
     if (!formOk || categoryError != null) return;
 
+    _pendingRequest ??= NewRepairRequest(
+      requestId: createStudentRequestId(),
+      title: _titleCtrl.text.trim(),
+      categoryId: _categoryId!,
+      description: _descCtrl.text.trim(),
+      attachments: List.unmodifiable(_images),
+    );
     setState(() {
       _submitting = true;
       _errorText = null;
     });
     try {
-      await widget.repository.createRequest(
-        NewRepairRequest(
-          title: _titleCtrl.text.trim(),
-          categoryId: _categoryId!,
-          description: _descCtrl.text.trim(),
-          attachments: List.of(_images),
-        ),
-      );
+      await widget.repository.createRequest(_pendingRequest!);
       if (!mounted) return;
+      _allowPop = true;
       _showMessage('Đã gửi yêu cầu sửa chữa');
       widget.onCreated(); // báo cho màn cha (chuyển về danh sách)
+    } on RequestFailure catch (failure) {
+      if (!mounted) return;
+      setState(() {
+        _uncertain = failure.uncertain;
+        _errorText = failure.uncertain
+            ? 'Chưa xác nhận được yêu cầu đã lưu. Bấm kiểm tra lại để tránh tạo trùng.'
+            : failure.message;
+        if (failure.accessDenied) {
+          _pendingRequest = null;
+          _images.clear();
+          _titleCtrl.clear();
+          _descCtrl.clear();
+          _categoryId = null;
+        }
+      });
     } catch (_) {
       // Lỗi khi ghi thì không tự thử lại, sinh viên tự bấm gửi lại.
       if (mounted) {
-        setState(() => _errorText = 'Gửi yêu cầu thất bại. Vui lòng thử lại.');
+        setState(() {
+          _uncertain = !widget.repository.allowsDemoFallback;
+          _errorText = _uncertain
+              ? 'Chưa xác nhận được yêu cầu đã lưu. Bấm kiểm tra lại để tránh tạo trùng.'
+              : 'Gửi yêu cầu thất bại. Vui lòng thử lại.';
+        });
       }
     } finally {
       if (mounted) setState(() => _submitting = false);
@@ -134,9 +232,21 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Tạo yêu cầu sửa chữa')),
-      body: _body(),
+    return PopScope<void>(
+      canPop: _allowPop || (!_hasDraft && !_submitting),
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _leave();
+      },
+      child: Scaffold(
+        appBar: DormFixAppBar(
+          title: 'Tạo yêu cầu sửa chữa',
+          roleLabel: 'Sinh viên',
+          leading: Navigator.of(context).canPop()
+              ? BackButton(onPressed: _leave)
+              : null,
+        ),
+        body: _body(),
+      ),
     );
   }
 
@@ -185,10 +295,13 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
                 CategoryTile(
                   category: c,
                   selected: _categoryId == c.id,
-                  onTap: () => setState(() {
-                    _categoryId = c.id;
-                    _categoryError = null;
-                  }),
+                  onTap: _submitting || _uncertain
+                      ? () {}
+                      : () => setState(() {
+                          _pendingRequest = null;
+                          _categoryId = c.id;
+                          _categoryError = null;
+                        }),
                 ),
             ],
           ),
@@ -220,6 +333,7 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
                 TextFormField(
                   key: const Key('titleField'),
                   controller: _titleCtrl,
+                  enabled: !_submitting && !_uncertain,
                   decoration: const InputDecoration(
                     hintText: 'VD: Hỏng bóng đèn nhà tắm',
                   ),
@@ -231,6 +345,7 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
                 TextFormField(
                   key: const Key('descField'),
                   controller: _descCtrl,
+                  enabled: !_submitting && !_uncertain,
                   decoration: const InputDecoration(
                     hintText: 'Mô tả tình trạng, vị trí, thời điểm xảy ra...',
                   ),
@@ -261,7 +376,10 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
             height: 48,
             child: FilledButton.icon(
               // null = nút bị khóa: đang gửi hoặc chưa có phòng
-              onPressed: (_submitting || noRoom) ? null : _submit,
+              key: const Key('create-request-submit'),
+              onPressed: (_submitting || _pickingImages || noRoom)
+                  ? null
+                  : _submit,
               icon: _submitting
                   ? const SizedBox(
                       width: 18,
@@ -269,7 +387,7 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : const Icon(Icons.send),
-              label: const Text('Gửi yêu cầu'),
+              label: Text(_uncertain ? 'Kiểm tra lại yêu cầu' : 'Gửi yêu cầu'),
             ),
           ),
         ],
@@ -292,13 +410,23 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
                 width: 72,
                 height: 72,
                 fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => const SizedBox(
+                  width: 72,
+                  height: 72,
+                  child: Icon(Icons.broken_image_outlined),
+                ),
               ),
             ),
             Positioned(
               right: -6,
               top: -6,
               child: GestureDetector(
-                onTap: () => setState(() => _images.removeAt(i)),
+                onTap: _submitting || _uncertain
+                    ? null
+                    : () => setState(() {
+                        _pendingRequest = null;
+                        _images.removeAt(i);
+                      }),
                 child: const CircleAvatar(
                   radius: 10,
                   backgroundColor: Colors.red,
@@ -310,7 +438,9 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
         ),
       if (_images.length < RequestRules.maxImages)
         InkWell(
-          onTap: _submitting ? null : _pickImages,
+          onTap: _submitting || _uncertain || _pickingImages
+              ? null
+              : _pickImages,
           borderRadius: BorderRadius.circular(8),
           child: Container(
             width: 72,

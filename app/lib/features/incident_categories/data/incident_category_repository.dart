@@ -1,211 +1,184 @@
-import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/data/admin_catalog_failure.dart';
+import '../../../core/data/admin_catalog_rpc.dart';
 import '../models/incident_category_item.dart';
 
-class IncidentCategoryRepository {
-  // Tránh gọi Supabase.instance.client trực tiếp tại property initializer
-  SupabaseClient? get _client {
-    try {
-      return Supabase.instance.client;
-    } catch (_) {
-      return null;
-    }
-  }
+abstract interface class IncidentCategoryRepository {
+  Future<List<IncidentCategoryItem>> fetchAllCategories();
+  Future<void> addCategory(String name);
+  Future<void> updateCategory(String id, String newName);
+  Future<void> toggleCategoryStatus(String id, bool currentStatus);
+}
 
-  // Dữ liệu mẫu dự phòng khi chạy chế độ xem trước hoặc chưa kết nối được Supabase
-  static final List<IncidentCategoryItem> _fallbackCategories = [
-    IncidentCategoryItem(
-      id: 'cat-1',
-      name: 'Điện',
-      isActive: true,
-      createdAt: DateTime.now().subtract(const Duration(days: 10)),
-    ),
-    IncidentCategoryItem(
-      id: 'cat-2',
-      name: 'Nước',
-      isActive: true,
-      createdAt: DateTime.now().subtract(const Duration(days: 8)),
-    ),
-    IncidentCategoryItem(
-      id: 'cat-3',
-      name: 'Nội thất & CSVC',
-      isActive: true,
-      createdAt: DateTime.now().subtract(const Duration(days: 5)),
-    ),
-    IncidentCategoryItem(
-      id: 'cat-4',
-      name: 'Mạng & Internet',
-      isActive: false,
-      createdAt: DateTime.now().subtract(const Duration(days: 2)),
-    ),
-  ];
+class SupabaseIncidentCategoryRepository implements IncidentCategoryRepository {
+  SupabaseIncidentCategoryRepository(SupabaseClient client)
+    : _rpc = AdminCatalogRpc(client);
 
-  /// Lấy toàn bộ danh mục sự cố cho Admin
-  Future<List<IncidentCategoryItem>> fetchAllCategories() async {
-    final client = _client;
-    if (client == null) {
-      return List.from(_fallbackCategories);
-    }
+  final AdminCatalogRpc _rpc;
 
-    try {
-      final response = await client
-          .from('incident_categories')
-          .select()
-          .order('created_at', ascending: true);
+  @override
+  Future<List<IncidentCategoryItem>> fetchAllCategories() => _rpc.call(
+    'admin_list_incident_categories',
+    (data) =>
+        List<IncidentCategoryItem>.unmodifiable((data as List).map(_category)),
+    readError: 'Không thể tải loại sự cố. Vui lòng thử lại.',
+  );
 
-      return (response as List)
-          .map((e) => IncidentCategoryItem.fromJson(e as Map<String, dynamic>))
-          .toList();
-    } on PostgrestException catch (e) {
-      if (e.code == '42501') {
-        debugPrint(
-          'Chưa có quyền 42501 trên Supabase: Dùng dữ liệu mẫu dự phòng.',
-        );
-        return List.from(_fallbackCategories);
-      }
-      rethrow;
-    } catch (e) {
-      debugPrint('Lỗi tải danh mục, chuyển sang dữ liệu mẫu: $e');
-      return List.from(_fallbackCategories);
-    }
-  }
-
-  /// DF-049: Thêm mới loại sự cố
+  @override
   Future<void> addCategory(String name) async {
-    final trimmed = name.trim();
-    if (trimmed.isEmpty) {
-      throw Exception('Tên loại sự cố không được để trống.');
-    }
-
-    final client = _client;
-    if (client == null) {
-      _fallbackCategories.add(
-        IncidentCategoryItem(
-          id: 'cat-${DateTime.now().millisecondsSinceEpoch}',
-          name: trimmed,
-          isActive: true,
-          createdAt: DateTime.now(),
-        ),
-      );
-      return;
-    }
-
-    try {
-      await client.from('incident_categories').insert({
-        'name': trimmed,
-        'is_active': true,
-      });
-    } on PostgrestException catch (e) {
-      if (e.code == '23505') {
-        throw Exception('Loại sự cố "$trimmed" đã tồn tại.');
-      }
-      if (e.code == '42501') {
-        _fallbackCategories.add(
-          IncidentCategoryItem(
-            id: 'cat-${DateTime.now().millisecondsSinceEpoch}',
-            name: trimmed,
-            isActive: true,
-            createdAt: DateTime.now(),
-          ),
-        );
-        return;
-      }
-      rethrow;
-    }
+    final trimmed = _categoryName(name);
+    await _write(
+      'admin_create_incident_category',
+      {'p_name': trimmed},
+      (category) => category.name == trimmed && category.isActive,
+      requireChange: true,
+    );
   }
 
-  /// DF-049: Sửa tên loại sự cố
+  @override
   Future<void> updateCategory(String id, String newName) async {
-    final trimmed = newName.trim();
-    if (trimmed.isEmpty) {
-      throw Exception('Tên loại sự cố không được để trống.');
-    }
-
-    final client = _client;
-    if (client == null) {
-      final index = _fallbackCategories.indexWhere((c) => c.id == id);
-      if (index != -1) {
-        final old = _fallbackCategories[index];
-        _fallbackCategories[index] = IncidentCategoryItem(
-          id: old.id,
-          name: trimmed,
-          isActive: old.isActive,
-          createdAt: old.createdAt,
-        );
-      }
-      return;
-    }
-
-    try {
-      await client
-          .from('incident_categories')
-          .update({
-            'name': trimmed,
-            'updated_at': DateTime.now().toIso8601String(),
-          })
-          .eq('id', id);
-    } on PostgrestException catch (e) {
-      if (e.code == '23505') {
-        throw Exception('Loại sự cố "$trimmed" đã tồn tại.');
-      }
-      if (e.code == '42501') {
-        final index = _fallbackCategories.indexWhere((c) => c.id == id);
-        if (index != -1) {
-          final old = _fallbackCategories[index];
-          _fallbackCategories[index] = IncidentCategoryItem(
-            id: old.id,
-            name: trimmed,
-            isActive: old.isActive,
-            createdAt: old.createdAt,
-          );
-        }
-        return;
-      }
-      rethrow;
-    }
+    final trimmed = _categoryName(newName);
+    await _write('admin_rename_incident_category', {
+      'p_category_id': id,
+      'p_name': trimmed,
+    }, (category) => category.id == id && category.name == trimmed);
   }
 
-  /// DF-050: Ngừng sử dụng / Kích hoạt lại loại sự cố
+  @override
+  Future<void> toggleCategoryStatus(String id, bool currentStatus) => _write(
+    'admin_set_incident_category_active',
+    {'p_category_id': id, 'p_is_active': !currentStatus},
+    (category) => category.id == id && category.isActive == !currentStatus,
+  );
+
+  Future<void> _write(
+    String function,
+    Map<String, dynamic> params,
+    bool Function(IncidentCategoryItem) matches, {
+    bool requireChange = false,
+  }) => _rpc.call(
+    function,
+    (data) {
+      final row = Map<String, dynamic>.from(data as Map);
+      final changed = row['changed'];
+      if (changed is! bool ||
+          (requireChange && !changed) ||
+          !matches(_category(row))) {
+        throw const FormatException('Invalid category receipt.');
+      }
+    },
+    params: params,
+    readError: 'Không thể lưu thông tin loại sự cố.',
+    write: true,
+  );
+
+  static IncidentCategoryItem _category(Object? row) =>
+      IncidentCategoryItem.fromJson(Map<String, dynamic>.from(row as Map));
+}
+
+class UnavailableIncidentCategoryRepository
+    implements IncidentCategoryRepository {
+  const UnavailableIncidentCategoryRepository();
+
+  @override
+  Future<List<IncidentCategoryItem>> fetchAllCategories() async =>
+      throw AdminCatalogFailure.unavailable;
+
+  @override
+  Future<void> addCategory(String name) async =>
+      throw AdminCatalogFailure.unavailable;
+
+  @override
+  Future<void> updateCategory(String id, String newName) async =>
+      throw AdminCatalogFailure.unavailable;
+
+  @override
+  Future<void> toggleCategoryStatus(String id, bool currentStatus) async =>
+      throw AdminCatalogFailure.unavailable;
+}
+
+class MockIncidentCategoryRepository implements IncidentCategoryRepository {
+  MockIncidentCategoryRepository({Iterable<IncidentCategoryItem>? categories})
+    : _categories = List.of(categories ?? const []);
+
+  final List<IncidentCategoryItem> _categories;
+  int _nextId = 0;
+
+  @override
+  Future<List<IncidentCategoryItem>> fetchAllCategories() async =>
+      List.unmodifiable(_categories);
+
+  @override
+  Future<void> addCategory(String name) async {
+    final trimmed = _categoryName(name);
+    _checkUnique(trimmed);
+    String id;
+    do {
+      id = 'mock-category-${_nextId++}';
+    } while (_categories.any((category) => category.id == id));
+    _categories.add(
+      IncidentCategoryItem(
+        id: id,
+        name: trimmed,
+        isActive: true,
+        createdAt: DateTime.now(),
+      ),
+    );
+  }
+
+  @override
+  Future<void> updateCategory(String id, String newName) async {
+    final trimmed = _categoryName(newName);
+    final index = _index(id);
+    _checkUnique(trimmed, except: id);
+    final old = _categories[index];
+    _categories[index] = IncidentCategoryItem(
+      id: id,
+      name: trimmed,
+      isActive: old.isActive,
+      createdAt: old.createdAt,
+    );
+  }
+
+  @override
   Future<void> toggleCategoryStatus(String id, bool currentStatus) async {
-    final client = _client;
-    if (client == null) {
-      final index = _fallbackCategories.indexWhere((c) => c.id == id);
-      if (index != -1) {
-        final old = _fallbackCategories[index];
-        _fallbackCategories[index] = IncidentCategoryItem(
-          id: old.id,
-          name: old.name,
-          isActive: !currentStatus,
-          createdAt: old.createdAt,
-        );
-      }
-      return;
-    }
+    final index = _index(id);
+    final old = _categories[index];
+    _categories[index] = IncidentCategoryItem(
+      id: id,
+      name: old.name,
+      isActive: !currentStatus,
+      createdAt: old.createdAt,
+    );
+  }
 
-    try {
-      await client
-          .from('incident_categories')
-          .update({
-            'is_active': !currentStatus,
-            'updated_at': DateTime.now().toIso8601String(),
-          })
-          .eq('id', id);
-    } on PostgrestException catch (e) {
-      if (e.code == '42501') {
-        final index = _fallbackCategories.indexWhere((c) => c.id == id);
-        if (index != -1) {
-          final old = _fallbackCategories[index];
-          _fallbackCategories[index] = IncidentCategoryItem(
-            id: old.id,
-            name: old.name,
-            isActive: !currentStatus,
-            createdAt: old.createdAt,
-          );
-        }
-        return;
-      }
-      rethrow;
+  int _index(String id) {
+    final index = _categories.indexWhere((category) => category.id == id);
+    if (index < 0) {
+      throw const AdminCatalogFailure(
+        'Không tìm thấy loại sự cố.',
+        conflict: true,
+      );
+    }
+    return index;
+  }
+
+  void _checkUnique(String name, {String? except}) {
+    if (_categories.any(
+      (category) =>
+          category.id != except &&
+          category.name.trim().toLowerCase() == name.toLowerCase(),
+    )) {
+      throw const AdminCatalogFailure('Tên loại sự cố đã tồn tại.');
     }
   }
+}
+
+String _categoryName(String value) {
+  final trimmed = value.trim();
+  if (trimmed.isEmpty) {
+    throw const AdminCatalogFailure('Tên loại sự cố không được để trống.');
+  }
+  return trimmed;
 }

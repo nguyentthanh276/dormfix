@@ -65,13 +65,13 @@ void main() {
     jobs,
   ) async {
     await _mount(tester, auth, null);
-    expect(find.text('DormFix - Kỹ thuật viên'), findsOneWidget);
+    expect(find.text('Công việc được giao'), findsOneWidget);
     expect(find.text('Vai trò: Kỹ thuật viên'), findsOneWidget);
     expect(
       find.textContaining('Danh sách công việc chưa sẵn sàng'),
       findsOneWidget,
     );
-    expect(find.text('Đăng xuất'), findsOneWidget);
+    expect(find.text('Cá nhân'), findsOneWidget);
   });
 
   _test('list shows loading and an empty response with refresh', (
@@ -278,7 +278,10 @@ void main() {
     (tester, auth, jobs) async {
       await _mount(tester, auth, jobs);
       await _openDetail(tester);
-      await tester.tap(find.text('Đăng xuất'));
+      await tester
+          .widget<TechnicianHomePage>(find.byType(TechnicianHomePage))
+          .controller
+          .signOut();
       await tester.pumpAndSettle();
       expect(find.text('Đăng nhập DormFix'), findsOneWidget);
       await tester.binding.handlePopRoute();
@@ -495,6 +498,6 @@ void main() {
     expect(tester.takeException(), isNull);
     await tester.tap(find.byType(BackButton));
     await tester.pumpAndSettle();
-    expect(find.text('DormFix - Kỹ thuật viên'), findsOneWidget);
+    expect(find.text('Công việc được giao'), findsOneWidget);
   });
 }

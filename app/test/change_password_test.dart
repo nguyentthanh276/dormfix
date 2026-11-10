@@ -350,7 +350,7 @@ void main() {
         await tester.pumpAndSettle();
 
         // Mở khóa màn hình Kỹ thuật viên
-        expect(find.text('DormFix - Kỹ thuật viên'), findsOneWidget);
+        expect(find.text('Công việc được giao'), findsOneWidget);
         expect(find.text('Đổi mật khẩu tạm'), findsNothing);
 
         await repository.dispose();

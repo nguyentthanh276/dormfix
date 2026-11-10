@@ -1,9 +1,14 @@
+// Đóng góp của Nguyễn Tiến Thành (DF-020, DF-021, DF-022, DF-027).
+// Phạm vi gồm danh sách, bộ lọc, mở chi tiết, lịch sử và thông báo.
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
 
 import '../../../core/models/app_role.dart';
 import '../../../core/models/repair_status.dart';
+import '../../../core/widgets/dormfix_app_bar.dart';
+import '../../../core/widgets/role_navigation_bar.dart';
 import '../../auth/presentation/auth_controller.dart';
 import '../../profile/data/profile_repository.dart';
 import '../../profile/presentation/profile_page.dart';
@@ -15,7 +20,7 @@ import 'technician_job_detail_page.dart';
 import 'technician_job_widgets.dart';
 import 'technician_tracking_views.dart';
 
-enum _TechnicianSection { jobs, history, notifications }
+enum _TechnicianSection { jobs, history, notifications, profile }
 
 class TechnicianHomePage extends StatefulWidget {
   const TechnicianHomePage({
@@ -58,6 +63,13 @@ class _TechnicianHomePageState extends State<TechnicianHomePage>
   bool _refreshQueued = false;
   bool _allowed = false;
   int _generation = 0;
+  GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
+  final Set<_TechnicianSection> _visited = {_TechnicianSection.jobs};
+  int _historyRevision = 0;
+  int _notificationsRevision = 0;
+  final ScrollController _jobsScrollController = ScrollController();
+  GlobalKey<TechnicianJobDetailPageState> _detailKey = GlobalKey();
+  bool _checkingLeave = false;
 
   bool get _hasAccess {
     final profile = widget.controller.profile;
@@ -106,6 +118,16 @@ class _TechnicianHomePageState extends State<TechnicianHomePage>
     _error = null;
     _loading = false;
     _refreshQueued = false;
+    _visited
+      ..clear()
+      ..add(_TechnicianSection.jobs);
+    _historyRevision = 0;
+    _notificationsRevision = 0;
+    // Nested password routes belong to this exact authenticated identity.
+    _navigatorKey = GlobalKey<NavigatorState>();
+    _detailKey = GlobalKey<TechnicianJobDetailPageState>();
+    _checkingLeave = false;
+    if (_jobsScrollController.hasClients) _jobsScrollController.jumpTo(0);
   }
 
   void _authChanged() {
@@ -136,6 +158,7 @@ class _TechnicianHomePageState extends State<TechnicianHomePage>
       _hasAccess &&
       widget.controller.profile?.id == identity;
 
+  // DF-020: Tải danh sách theo phiên hiện tại và gộp các lượt tải lại đang chờ.
   Future<void> _loadJobs() async {
     final repository = widget.repository;
     if (!_hasAccess || repository == null) return;
@@ -180,14 +203,41 @@ class _TechnicianHomePageState extends State<TechnicianHomePage>
     }
   }
 
-  void _backToList() {
+  Future<void> _backToList() async {
+    if (_checkingLeave) return;
+    final identity = _identity;
+    final requestId = _selectedJobId;
+    _checkingLeave = true;
+    final canLeave =
+        await (_detailKey.currentState?.confirmLeave() ?? Future.value(true));
+    if (!mounted || _identity != identity || _selectedJobId != requestId) {
+      return;
+    }
+    _checkingLeave = false;
+    if (!canLeave) return;
     setState(() {
-      if (_selectedJobId == null) _section = _TechnicianSection.jobs;
       _selectedJobId = null;
+      if (_section == _TechnicianSection.history) _historyRevision++;
+      if (_section == _TechnicianSection.notifications) {
+        _notificationsRevision++;
+      }
     });
     unawaited(_loadJobs());
   }
 
+  // DF-027: Đổi tab và yêu cầu tải lại lịch sử hoặc thông báo khi được chọn.
+  void _selectSection(int index) {
+    final section = _TechnicianSection.values[index];
+    setState(() {
+      _section = section;
+      _visited.add(section);
+      if (section == _TechnicianSection.history) _historyRevision++;
+      if (section == _TechnicianSection.notifications) _notificationsRevision++;
+    });
+    if (section == _TechnicianSection.jobs) unawaited(_loadJobs());
+  }
+
+  // DF-022: Mở chi tiết bằng ID từ thẻ công việc, lịch sử hoặc thông báo.
   void _openTrackedJob(String requestId) {
     if (!_hasAccess || widget.repository == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -195,7 +245,10 @@ class _TechnicianHomePageState extends State<TechnicianHomePage>
       );
       return;
     }
-    setState(() => _selectedJobId = requestId);
+    setState(() {
+      _detailKey = GlobalKey<TechnicianJobDetailPageState>();
+      _selectedJobId = requestId;
+    });
   }
 
   void _detailAccessDenied() {
@@ -226,6 +279,7 @@ class _TechnicianHomePageState extends State<TechnicianHomePage>
     _jobs = [];
     widget.controller.removeListener(_authChanged);
     WidgetsBinding.instance.removeObserver(this);
+    _jobsScrollController.dispose();
     super.dispose();
   }
 
@@ -245,89 +299,78 @@ class _TechnicianHomePageState extends State<TechnicianHomePage>
       );
     }
     final identity = widget.controller.profile!.id;
+    // Every pushed personal form remains inside this authenticated Home.
+    // Removing Home on logout also removes the nested routes and private data.
+    return NavigatorPopHandler<Object?>(
+      onPopWithResult: (_) => _navigatorKey.currentState?.maybePop(),
+      child: Navigator(
+        key: _navigatorKey,
+        pages: [
+          MaterialPage<void>(
+            key: ValueKey('technician-shell-$identity'),
+            child: _buildShell(identity),
+          ),
+        ],
+        onDidRemovePage: (_) {},
+      ),
+    );
+  }
+
+  Widget _buildShell(String identity) {
     final selectedId = _selectedJobId;
-    final atJobs = selectedId == null && _section == _TechnicianSection.jobs;
-    // Detail is local state, never a route on the application's Navigator.
-    // Removing this authenticated Home removes every detail and photo.
+    final profile = widget.controller.profile!;
+    final atRoot = selectedId == null;
     return PopScope(
-      canPop: atJobs,
+      canPop: atRoot,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) _backToList();
       },
       child: Scaffold(
-        appBar: AppBar(
-          leading: atJobs ? null : BackButton(onPressed: _backToList),
-          title: Text(
-            selectedId != null
-                ? 'Chi tiết công việc'
-                : switch (_section) {
-                    _TechnicianSection.jobs => 'DormFix - Kỹ thuật viên',
-                    _TechnicianSection.history => 'Lịch sử công việc',
-                    _TechnicianSection.notifications => 'Thông báo',
-                  },
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          actions: [
-            if (selectedId == null)
-              PopupMenuButton<_TechnicianSection>(
-                key: const Key('technician-tracking-menu'),
-                tooltip: 'Theo dõi công việc',
-                onSelected: (section) {
-                  setState(() => _section = section);
-                  if (section == _TechnicianSection.jobs) {
-                    unawaited(_loadJobs());
-                  }
+        appBar: DormFixAppBar(
+          title: selectedId != null
+              ? 'Chi tiết công việc'
+              : switch (_section) {
+                  _TechnicianSection.jobs => 'Công việc được giao',
+                  _TechnicianSection.history => 'Lịch sử công việc',
+                  _TechnicianSection.notifications => 'Thông báo',
+                  _TechnicianSection.profile => 'Tài khoản cá nhân',
                 },
-                itemBuilder: (_) => const [
-                  PopupMenuItem(
-                    value: _TechnicianSection.jobs,
-                    child: Text('Công việc được giao'),
+          roleLabel: 'Kỹ thuật viên',
+          fullName: profile.fullName,
+          automaticallyImplyLeading: false,
+          leading: atRoot ? null : BackButton(onPressed: _backToList),
+          onAccountTap: atRoot
+              ? () => _selectSection(_TechnicianSection.profile.index)
+              : null,
+        ),
+        bottomNavigationBar: atRoot
+            ? RoleNavigationBar(
+                selectedIndex: _section.index,
+                onDestinationSelected: _selectSection,
+                destinations: const [
+                  NavigationDestination(
+                    icon: Icon(Icons.home_repair_service_outlined),
+                    selectedIcon: Icon(Icons.home_repair_service),
+                    label: 'Công việc',
                   ),
-                  PopupMenuItem(
-                    value: _TechnicianSection.history,
-                    child: Text('Lịch sử công việc'),
+                  NavigationDestination(
+                    icon: Icon(Icons.history_outlined),
+                    selectedIcon: Icon(Icons.history),
+                    label: 'Lịch sử',
                   ),
-                  PopupMenuItem(
-                    value: _TechnicianSection.notifications,
-                    child: Text('Thông báo'),
+                  NavigationDestination(
+                    icon: Icon(Icons.notifications_outlined),
+                    selectedIcon: Icon(Icons.notifications),
+                    label: 'Thông báo',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.person_outline),
+                    selectedIcon: Icon(Icons.person),
+                    label: 'Cá nhân',
                   ),
                 ],
-              ),
-            IconButton(
-              key: const Key('technician-profile-btn'),
-              tooltip: 'Hồ sơ cá nhân',
-              icon: const Icon(Icons.person_outline),
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => ProfilePage(
-                      controller: widget.controller,
-                      profileRepository: widget.profileRepository,
-                      onSignOut: () {
-                        Navigator.of(context).pop();
-                        unawaited(widget.controller.signOut());
-                      },
-                    ),
-                  ),
-                );
-              },
-            ),
-            TextButton.icon(
-              onPressed: widget.controller.isLoading
-                  ? null
-                  : () => unawaited(widget.controller.signOut()),
-              icon: widget.controller.isLoading
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.logout),
-              label: const Text('Đăng xuất'),
-            ),
-          ],
-        ),
+              )
+            : null,
         body: SafeArea(
           child: Column(
             children: [
@@ -342,29 +385,68 @@ class _TechnicianHomePageState extends State<TechnicianHomePage>
                   ),
                 ),
               Expanded(
-                child: selectedId != null && widget.repository != null
-                    ? TechnicianJobDetailPage(
-                        key: ValueKey('$_identity:$selectedId'),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Offstage(
+                      offstage: !atRoot,
+                      child: TickerMode(
+                        enabled: atRoot,
+                        child: IndexedStack(
+                          index: _section.index,
+                          children: [
+                            _buildList(),
+                            // DF-027: Chỉ tạo màn theo dõi sau khi mở tab.
+                            if (_visited.contains(_TechnicianSection.history))
+                              TechnicianWorkHistoryView(
+                                key: ValueKey('$identity:history'),
+                                repository: widget.trackingRepository,
+                                refreshRevision: _historyRevision,
+                                onOpenDetail: _openTrackedJob,
+                              )
+                            else
+                              const SizedBox.shrink(),
+                            if (_visited.contains(
+                              _TechnicianSection.notifications,
+                            ))
+                              TechnicianNotificationsView(
+                                key: ValueKey('$identity:notifications'),
+                                repository: widget.trackingRepository,
+                                refreshRevision: _notificationsRevision,
+                                onOpenDetail: _openTrackedJob,
+                              )
+                            else
+                              const SizedBox.shrink(),
+                            if (_visited.contains(_TechnicianSection.profile))
+                              ProfilePage(
+                                key: ValueKey('$identity:profile'),
+                                embedded: true,
+                                active:
+                                    atRoot &&
+                                    _section == _TechnicianSection.profile,
+                                controller: widget.controller,
+                                profileRepository: widget.profileRepository,
+                                onSignOut: () =>
+                                    unawaited(widget.controller.signOut()),
+                              )
+                            else
+                              const SizedBox.shrink(),
+                          ],
+                        ),
+                      ),
+                    ),
+                    // DF-022: Truyền ID đã chọn vào màn chi tiết.
+                    if (selectedId != null && widget.repository != null)
+                      TechnicianJobDetailPage(
+                        key: _detailKey,
                         requestId: selectedId,
                         repository: widget.repository!,
                         onAccessDenied: _detailAccessDenied,
                         workflowRepository: widget.workflowRepository,
                         onJobChanged: () => _jobWriteFinished(identity),
-                      )
-                    : switch (_section) {
-                        _TechnicianSection.jobs => _buildList(),
-                        _TechnicianSection.history => TechnicianWorkHistoryView(
-                          key: ValueKey('$_identity:history'),
-                          repository: widget.trackingRepository,
-                          onOpenDetail: _openTrackedJob,
-                        ),
-                        _TechnicianSection.notifications =>
-                          TechnicianNotificationsView(
-                            key: ValueKey('$_identity:notifications'),
-                            repository: widget.trackingRepository,
-                            onOpenDetail: _openTrackedJob,
-                          ),
-                      },
+                      ),
+                  ],
+                ),
               ),
             ],
           ),
@@ -373,6 +455,7 @@ class _TechnicianHomePageState extends State<TechnicianHomePage>
     );
   }
 
+  // DF-020: Hiển thị danh sách, trạng thái tải, rỗng và lỗi có nút thử lại.
   Widget _buildList() {
     if (widget.repository == null) {
       return const TechnicianJobsMessage(
@@ -410,6 +493,7 @@ class _TechnicianHomePageState extends State<TechnicianHomePage>
     );
   }
 
+  // DF-021: Lọc dữ liệu đã tải theo trạng thái đang chọn trên máy.
   Widget _buildFilteredJobs() {
     final visibleJobs = _selectedStatus == null
         ? _jobs
@@ -437,6 +521,7 @@ class _TechnicianHomePageState extends State<TechnicianHomePage>
                 )
               : ListView.separated(
                   key: const Key('technician-jobs-list'),
+                  controller: _jobsScrollController,
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
                   itemCount: visibleJobs.length,
@@ -446,7 +531,8 @@ class _TechnicianHomePageState extends State<TechnicianHomePage>
                     return Card(
                       clipBehavior: Clip.antiAlias,
                       child: InkWell(
-                        onTap: () => setState(() => _selectedJobId = job.id),
+                        // DF-022: Dùng ID của thẻ vừa bấm để mở chi tiết.
+                        onTap: () => _openTrackedJob(job.id),
                         child: Padding(
                           padding: const EdgeInsets.all(16),
                           child: Column(
@@ -479,6 +565,7 @@ class _TechnicianHomePageState extends State<TechnicianHomePage>
     );
   }
 
+  // DF-021: Cập nhật trạng thái lọc khi chọn một nhãn.
   Widget _buildStatusFilters() => SingleChildScrollView(
     scrollDirection: Axis.horizontal,
     padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
@@ -501,6 +588,7 @@ class _TechnicianHomePageState extends State<TechnicianHomePage>
     ),
   );
 
+  // DF-021: Số trên mỗi nhãn được đếm từ danh sách gốc đã tải.
   int _statusCount(RepairStatus status) =>
       _jobs.where((job) => job.status == status).length;
 }

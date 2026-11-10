@@ -2,15 +2,23 @@
 
 File `001_schema.sql` tạo 10 bảng nghiệp vụ trong một project Supabase mới, enum trạng thái, mã yêu cầu tự tăng, khóa ngoại, index và phân quyền đọc ban đầu. Đây là migration nền tảng, chưa phải backend hoàn chỉnh. Đã chạy thành công trên project DormFix ngày 12/10/2026; kết quả xác minh tại `DEPLOYMENT.md`.
 
-Đọc công việc Kỹ thuật viên DF-020/DF-022 được bổ sung trong `004_technician_jobs.sql`, đã áp dụng ngày 15/10/2026. Hai RPC chỉ cho Kỹ thuật viên active/đã đổi mật khẩu đọc công việc hiện được giao; policy Storage cho phép tải ảnh private theo `can_read_request`. Hợp đồng tại `../docs/technician-jobs-contract.md`, test rollback tại `tests/004_technician_jobs.sql`. Các hàm ghi nghiệp vụ và quyền upload ảnh vẫn chưa có. Không chạy lại các migration đã áp dụng.
+Đọc công việc Kỹ thuật viên DF-020/DF-022 được bổ sung trong `004_technician_jobs.sql`, đã áp dụng ngày 15/10/2026. Hai RPC chỉ cho Kỹ thuật viên active/đã đổi mật khẩu đọc công việc hiện được giao; policy Storage cho phép tải ảnh private theo `can_read_request`. Hợp đồng tại `../docs/technician-jobs-contract.md`, test rollback tại `tests/004_technician_jobs.sql`. Các migration tiếp theo bổ sung thao tác ghi và upload ảnh. Không chạy lại các migration đã áp dụng.
 
 DF-028/029/030 thêm RPC đọc danh sách tài khoản Admin trong `009_admin_account_list.sql`. Migration này cần triển khai một lần trên project Supabase; không chạy lại sau khi đã áp dụng. Test phân quyền, tìm kiếm và phân trang rollback tại `tests/009_admin_account_list.sql`.
 
 DF-043/044 thêm các RPC Admin chỉ đọc danh sách, bộ lọc và chi tiết yêu cầu trong `010_admin_request_reads.sql`. Migration chỉ thêm function trên schema hiện có, cần triển khai một lần sau khi được duyệt; không chạy lại sau khi đã áp dụng. Test rollback cho quyền Admin, bộ lọc kết hợp, khoảng ngày và dữ liệu chi tiết nằm ở `tests/010_admin_request_reads.sql`.
 
-DF-027 thêm lịch sử từng lần phân công và thông báo trong ứng dụng Kỹ thuật viên trong `013_technician_tracking.sql`, áp dụng một lần sau 012. Người đã chuyển giao chỉ nhận snapshot tóm tắt; thao tác đánh dấu đọc chỉ dành cho chính người nhận. Trigger tạo thông báo phân công/chuyển giao/hủy/sửa lại/hoàn tất cùng transaction nguồn, không backfill dữ liệu cũ hoặc gửi thông báo đẩy. Hợp đồng tại `../docs/technician-tracking-contract.md`, script rollback tại `tests/013_technician_tracking.sql`. File migration trong Git chưa xác nhận việc triển khai lên database dùng chung.
+DF-027 thêm lịch sử từng lần phân công và thông báo trong ứng dụng Kỹ thuật viên trong `013_technician_tracking.sql`, đã triển khai ngày 03/11/2026. Người đã chuyển giao chỉ nhận snapshot tóm tắt; thao tác đánh dấu đọc chỉ dành cho chính người nhận. Trigger tạo thông báo phân công/chuyển giao/hủy/sửa lại/hoàn tất cùng transaction nguồn, không backfill dữ liệu cũ hoặc gửi thông báo đẩy. Hợp đồng tại `../docs/technician-tracking-contract.md`, script rollback tại `tests/013_technician_tracking.sql`; kết quả tại `DEPLOYMENT.md`.
 
-DF-017 thêm hai RPC đánh dấu đọc thông báo Sinh viên trong `014_student_notification_reads.sql`, áp dụng một lần sau 013. Chỉ Sinh viên active/đã đổi mật khẩu được sửa `read_at` của thông báo chính chủ bằng thời gian server; giữ nguyên thời gian đã đọc và không cấp quyền ghi bảng trực tiếp. Hợp đồng tại `../docs/student-notifications-contract.md`, regression rollback tại `tests/014_student_notification_reads.sql`. Migration 014 đã triển khai ngày 03/11/2026, ghi nhận tại `DEPLOYMENT.md`; ứng dụng Sinh viên vẫn dùng mock cho cả yêu cầu và thông báo.
+DF-017 có hai RPC đánh dấu đã đọc trong `014_student_notification_reads.sql`, triển khai ngày 03/11/2026. Chỉ Sinh viên đang hoạt động và đã hoàn tất đổi mật khẩu được đánh dấu thông báo của mình. Phần 4 triển khai nguồn sự kiện phân công và từ chối ngày 10/11/2026, giữ nguồn thông báo kết quả ở migration 005. [Hợp đồng DF-017](../docs/student-notifications-contract.md) · [Migration sự kiện](20261109184537_student_notification_events.sql)
+
+Phần 1 DF-007–010 bổ sung `20261109165740_student_request_foundation.sql`, đã triển khai ngày 10/11/2026 sau các migration hiện có. Bốn RPC đọc loại/danh sách/chi tiết và tạo yêu cầu kiểm tra danh tính, phòng, loại và ảnh private trên server. UUID cùng fingerprint hỗ trợ thử lại mà không tạo trùng; ba policy chỉ cho quản lý ảnh tạm chính chủ và giữ nguyên ảnh đã gửi. Hợp đồng tại `../docs/student-requests-contract.md`, regression rollback tại `tests/student_request_foundation.sql`, kết quả kiểm thử SQL/HTTP/Flutter SDK tại `DEPLOYMENT.md`.
+
+Phần 2 DF-013/014/015 bổ sung `20261109173649_student_result_confirmation.sql`, đã triển khai ngày 10/11/2026 sau Phần 1. `student_confirm_result` và `student_request_rework` kiểm tra phiên bản/kết quả của phân công hiện tại, lưu hoàn tất hoặc phản hồi sửa lại cùng lịch sử trong một giao dịch; UUID/fingerprint trên lịch sử chống gửi trùng. Ba policy mới quản lý ảnh phản hồi tạm chính chủ, không cho xóa ảnh đã gửi. Hợp đồng tại `../docs/student-result-actions-contract.md`, regression tại `tests/student_result_confirmation.sql`. Kiểm tra repository SDK thật đã đi qua hai vòng xử lý và xác nhận hoàn tất; không suy ra các chức năng khác trong backlog đều hoàn thành.
+
+Phần 3 DF-011/012/016 đã triển khai ngày 10/11/2026. Ba RPC kiểm tra chủ sở hữu, phiên bản và trạng thái trước khi sửa, hủy hoặc mở lại yêu cầu. Quyền mở lại dựa trên ID phòng hiện tại còn hoạt động. `student_get_request` trả các cờ `can_edit`, `can_cancel`, `can_reopen` cho giao diện. [Migration](20261109175550_student_request_lifecycle.sql) · [Kiểm thử SQL](tests/student_request_lifecycle.sql)
+
+Phần 5 DF-039–042/049–050 đã triển khai ngày 10/11/2026. RPC dành cho Admin chuẩn hóa mã phòng và tên loại, khóa bản ghi khi thay đổi, rồi ghi lịch sử trong cùng giao dịch. Khi ngừng sử dụng phòng, máy chủ kiểm tra Sinh viên đang hoạt động hoặc bị khóa. RPC quản lý tài khoản sau này cần khóa và kiểm tra phòng đích còn hoạt động trước khi gán phòng hoặc khôi phục Sinh viên. [Migration](20261109185257_admin_rooms_and_categories.sql) · [Kiểm thử SQL](tests/admin_rooms_and_categories.sql)
 
 ## Các quyết định dữ liệu
 
@@ -57,7 +65,9 @@ Luồng chính: pending → assigned → in_progress → awaiting_confirmation �
 - Từ chối: pending → rejected; lý do bắt buộc.
 - Đổi người: assigned/in_progress/awaiting_rework giữ trạng thái. Ở in_progress, người mới cần xác nhận tiếp tục trước khi gửi kết quả. Ở awaiting_rework, bấm tiếp tục mới chuyển in_progress.
 
-## Phần bắt buộc làm tiếp trước khi nối ứng dụng
+## Danh sách yêu cầu backend để đối chiếu
+
+Danh sách dưới đây là yêu cầu thiết kế tổng thể, không phải danh sách các phần đều chưa làm. Đối chiếu từng migration, hợp đồng và nghiệm thu trước khi đánh dấu backlog; Phần 1 chỉ hoàn thiện DF-007–010.
 
 1. Hàm tạo tài khoản và profile bằng quyền server, đồng bộ email Auth/profile, tạo Admin ban đầu. Chặn đổi email tại Auth và profile, đổi mã định danh và tự nâng quyền. Không lưu mật khẩu tạm trong bảng.
 2. Endpoint đọc đầy đủ hồ sơ chính chủ và danh sách tài khoản Admin; endpoint cập nhật số điện thoại chính chủ. Bảng profiles chỉ cấp quyền đọc id/full_name/phone để tránh lộ thông tin quản trị và email người khác.
@@ -70,7 +80,7 @@ Luồng chính: pending → assigned → in_progress → awaiting_confirmation �
 
 ## Kiểm tra trước khi chạy migration
 
-Chỉ chạy trên project mới chưa có các object cùng tên. Migration nằm trong transaction; không xóa bảng hay thay dữ liệu cũ. Sau tạo bảng, chưa có quyền ghi từ client và chưa có Storage policy. Chưa có tài khoản demo. Schema đã được xác minh thực thi; các quy tắc nghiệp vụ và quyền truy cập theo từng role cần kiểm thử tiếp với tài khoản demo.
+`001_schema.sql` chỉ dành cho project mới chưa có các object cùng tên. Project DormFix hiện đã có schema, tài khoản demo và các migration nghiệp vụ; xem `DEPLOYMENT.md` trước khi chạy bất kỳ file nào. Với thay đổi tiếp theo, tạo migration mới, kiểm thử rollback, rồi áp dụng một lần lên đúng project. Không chạy lại toàn bộ thư mục để cập nhật.
 
 DF-045/046 thêm các RPC ghi Admin cho phân công và từ chối trong `011_admin_request_workflow.sql`. DF-047/048 thêm đổi KTV và xử lý thay Sinh viên đã thu hồi trong `012_admin_request_resolution.sql`. Hai migration chỉ thêm RPC, không thay đổi RPC Sinh viên/KTV hiện có; mỗi thao tác khóa yêu cầu/tài khoản liên quan, kiểm tra lại role/trạng thái, ghi lịch sử trong cùng transaction. Test rollback từng giai đoạn ở `tests/011_admin_request_workflow.sql` và `tests/012_admin_request_resolution.sql`.
 

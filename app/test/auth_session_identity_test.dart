@@ -205,6 +205,75 @@ void main() {
     expect(networkCalls, 0);
   });
 
+  for (final mustChangePassword in [true, false]) {
+    test(
+      mustChangePassword
+          ? 'keeps the password gate when confirmation fails and the profile is still gated'
+          : 'reconciles a lost password confirmation with the server profile',
+      () async {
+        const newPassword = 'New-local-test-password-393';
+        final requests = <http.Request>[];
+        final client = await open((request) async {
+          requests.add(request);
+          return switch (request.url.path) {
+            '/auth/v1/user' => _jsonResponse(_authUserJson(_userA)),
+            '/rest/v1/rpc/complete_change_password' => _jsonResponse({
+              'code': 'PGRST000',
+              'message': 'Confirmation response unavailable',
+            }, statusCode: 500),
+            '/rest/v1/rpc/get_my_profile' => _jsonResponse(
+              _profileJson(_userA, mustChangePassword: mustChangePassword),
+            ),
+            _ => throw StateError('Unexpected request ${request.url.path}'),
+          };
+        });
+        final accessToken = client.auth.currentSession!.accessToken;
+        final change = SupabaseAuthRepository(client)
+            .changePassword(newPassword: newPassword);
+
+        if (mustChangePassword) {
+          await expectLater(
+            change,
+            throwsA(
+              isA<AuthFailure>()
+                  .having(
+                    (failure) => failure.signOutRequired,
+                    'signOutRequired',
+                    isFalse,
+                  )
+                  .having(
+                    (failure) => failure.message,
+                    'message',
+                    contains('Máy chủ chưa xác nhận đổi mật khẩu'),
+                  ),
+            ),
+          );
+        } else {
+          final profile = await change;
+          expect(profile.id, _userA);
+          expect(profile.mustChangePassword, isFalse);
+          expect(profile.canAccess, isTrue);
+        }
+
+        expect(requests.map((request) => request.url.path), [
+          '/auth/v1/user',
+          '/rest/v1/rpc/complete_change_password',
+          '/rest/v1/rpc/get_my_profile',
+        ]);
+        expect(requests.map((request) => request.method), [
+          'PUT',
+          'POST',
+          'POST',
+        ]);
+        expect(jsonDecode(requests.first.body), {'password': newPassword});
+        expect(
+          requests.map((request) => request.headers['authorization']),
+          everyElement('Bearer $accessToken'),
+        );
+      },
+    );
+  }
+
   test(
     'logout during profile loading cannot restore the old protected state',
     () async {
@@ -353,15 +422,17 @@ Future<void> _setSession(
     'access_token': _jwt(userId, revision),
     'token_type': 'bearer',
     'refresh_token': 'local-test-refresh-token',
-    'user': {
-      'id': userId,
-      'app_metadata': <String, dynamic>{},
-      'user_metadata': <String, dynamic>{},
-      'aud': 'authenticated',
-      'created_at': '2026-10-15T00:00:00Z',
-    },
+    'user': _authUserJson(userId),
   }),
 );
+
+Map<String, Object> _authUserJson(String userId) => {
+  'id': userId,
+  'app_metadata': <String, dynamic>{},
+  'user_metadata': <String, dynamic>{},
+  'aud': 'authenticated',
+  'created_at': '2026-10-15T00:00:00Z',
+};
 
 String _jwt(String userId, int revision) {
   String part(Object value) =>
@@ -382,11 +453,12 @@ String _requestUserId(http.Request request) {
   return payload['sub'] as String;
 }
 
-http.Response _jsonResponse(Object value) => http.Response.bytes(
-  utf8.encode(jsonEncode(value)),
-  200,
-  headers: {'content-type': 'application/json; charset=utf-8'},
-);
+http.Response _jsonResponse(Object value, {int statusCode = 200}) =>
+    http.Response.bytes(
+      utf8.encode(jsonEncode(value)),
+      statusCode,
+      headers: {'content-type': 'application/json; charset=utf-8'},
+    );
 
 Map<String, dynamic> _profileJson(
   String userId, {
